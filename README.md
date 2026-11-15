@@ -1,6 +1,6 @@
 # social-manager
 
-Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Manager does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels and Facebook Page Reels.
+Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Manager does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels, Facebook Page Reels and LinkedIn.
 
 ```
  Claude tasks / scripts / curl
@@ -9,7 +9,7 @@ Post videos to social platforms from one API call, with no browser. Put the vide
    Apps Script web app (this repo) ──► "Social Manager" Sheet: one row per job
               │  every 5 min: work the queue
               ▼
-   Drive (read the files) ──► YouTube Data API (upload in parts, set details)
+   Drive (read the files) ──► one adapter per platform: YouTube, Instagram, Facebook, LinkedIn
 ```
 
 **New here, or an AI agent? Read [docs/FAQ.md](docs/FAQ.md) first.**
@@ -18,7 +18,8 @@ Post videos to social platforms from one API call, with no browser. Put the vide
 
 - `src/api.js`: the web app and its actions.
 - `src/worker.js`: runs queued jobs step by step and saves progress after each one.
-- `src/youtube.js`: the YouTube adapter. A new platform is a new file like it, added to `platforms_()` in `src/core.js`.
+- `src/youtube.js`, `src/instagram.js`, `src/facebook.js`, `src/linkedin.js`: one adapter per platform (`src/meta.js` and `src/youtube-auth.js` hold their sign-in helpers). A new platform is a new file like them, added to `platforms_()` in `src/core.js`.
+- `src/deploy.js`: the hourly self-update from `main`.
 - `src/google.js`: Drive and Google API helpers. `src/store.js`: the jobs sheet.
 
 ## Set up (once)
