@@ -88,13 +88,17 @@ function metaUpload_(url, token, bytes, offset, size) {
 
 function metaError_(r) {
   const code = r.getResponseCode();
+  const text = String(r.getContentText() || '');
   let e = {};
-  try { e = JSON.parse(r.getContentText()).error || {}; } catch (err) { e = { message: String(r.getContentText()).slice(0, 300) }; }
-  const message = e.error_user_msg || e.message || '';
+  // The Graph API puts errors under "error"; the upload host (rupload) uses "debug_info".
+  try { const b = JSON.parse(text); e = b.error || b.debug_info || {}; } catch (err) { e = {}; }
+  const reason = e.error_user_msg || e.message || '';
+  const message = reason || text.slice(0, 300);
   let retry = false;
-  // 4, 17, 32, 613: rate limits. 2 and is_transient: Meta's own temporary errors.
+  // 4, 17, 32, 613: rate limits. 2 and is_transient: Meta's own temporary errors. An error with no
+  // reason at all (seen right after an Instagram container is made) has passed on the next try.
   if ([4, 17, 32, 613].includes(e.code)) retry = 'quota';
-  else if (code >= 500 || e.is_transient || e.code === 2) retry = 'transient';
+  else if (code >= 500 || e.is_transient || e.retriable || e.code === 2 || (!reason && !e.code)) retry = 'transient';
   return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, retry });
 }
 
