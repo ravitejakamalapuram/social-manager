@@ -135,6 +135,9 @@ YouTube gives each API project 10,000 quota units a day. An upload costs about 1
 ### Why did my upload stay private?
 YouTube locks every video uploaded through an API project that hasn't passed its free compliance audit to private, and those videos can't be made public later, only uploaded again. The result shows a warning when this happens. The fix: move the script to your own Google Cloud project and apply for the audit (see the next question). Until it passes, upload from the YouTube app and use `videoId` to set everything else.
 
+### Where is the architecture?
+In [ARCHITECTURE.md](ARCHITECTURE.md): one diagram of the parts and one of the sign-in and upload flow.
+
 ### How do I apply for the YouTube audit?
 1. In [console.cloud.google.com](https://console.cloud.google.com) create a project, enable the **YouTube Data API v3**, **Google Drive API** and **Apps Script API**, and set up the OAuth consent screen (home page, privacy policy, then publish).
 2. In the Apps Script editor, Project Settings → Google Cloud Platform project → Change project, and enter the project number. Run `setup` again to authorize.
