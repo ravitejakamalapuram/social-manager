@@ -97,4 +97,10 @@ test('instagram: an upload error with no reason is retried, not failed', () => {
   const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
   assert.equal(job.status, 'queued', JSON.stringify(job));
   assert.match(job.error, /Will retry: Meta answered 400/);
+  // The retry uploads into a new container, since Meta refuses more bytes on the old one.
+  t.sheet.rows[1][t.sheet.rows[0].indexOf('notBefore')] = ''; // pretend the wait is over
+  runAll(t);
+  const done = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(done.status, 'done', JSON.stringify(done));
+  assert.deepEqual(t.google.meta.uploads.c2.got, t.google.files.vid.bytes);
 });

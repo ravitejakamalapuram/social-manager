@@ -704,9 +704,22 @@ const IG_STEPS = {
     return 'next';
   },
 
+  /**
+   * A failed upload leaves the container unusable ("not in the status to upload a video"), so the
+   * next try starts again with a fresh container instead of resuming into the old one.
+   */
   upload(p, s, ctx, c) {
+    if (!s.containerId) IG_STEPS.container(p, s, ctx, c);
     metaFileSize_(p, s);
-    return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
+    try {
+      return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
+    } catch (err) {
+      delete s.containerId;
+      delete s.uploadUrl;
+      s.offset = 0;
+      ctx.save();
+      throw err;
+    }
   },
 
   /** Instagram processes the video before it can be published; this usually takes under a minute. */
