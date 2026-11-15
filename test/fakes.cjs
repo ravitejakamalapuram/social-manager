@@ -34,7 +34,7 @@ function fakeGoogle() {
   const g = {
     files: {}, videos: {}, sessions: {}, thumbnails: {}, captions: [], playlistItems: [],
     playlists: [{ id: 'PLdocs', snippet: { title: 'Documentaries' } }],
-    calls: [], fail: {},
+    calls: [], fail: {}, li: { parts: [], status: [] },
   };
   g.fetch = (url, p) => {
     const u = new URL(url);
@@ -83,10 +83,33 @@ function fakeGoogle() {
     if (u.pathname === '/upload/youtube/v3/captions') { g.captions.push(Buffer.from(p.payload).toString('utf8')); return res(200, {}); }
     if (u.pathname === '/youtube/v3/playlists') return res(200, { items: g.playlists });
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
+    if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
     if (u.pathname === '/youtube/v3/channels') return res(200, { items: [{ id: 'UC1', snippet: { title: 'My channel' } }] });
     return err(500, `unhandled ${m} ${url}`);
   };
   return g;
+}
+
+/** Fake LinkedIn: userinfo, Videos API (4-byte parts here), Posts API. */
+function fakeLinkedIn(g, u, m, p) {
+  const li = g.li;
+  if (u.pathname === '/v2/userinfo') return res(200, { sub: 'abc', name: 'Pat Doe' });
+  if (u.searchParams.get('action') === 'initializeUpload') {
+    const r = JSON.parse(p.payload).initializeUploadRequest;
+    li.init = r;
+    const parts = [];
+    for (let a = 0; a < r.fileSizeBytes; a += 4) parts.push({ firstByte: a, lastByte: Math.min(a + 4, r.fileSizeBytes) - 1, uploadUrl: `https://li-upload.example/part/${parts.length}` });
+    return res(200, { value: { video: 'urn:li:video:V1', uploadToken: 'tok', uploadInstructions: parts, thumbnailUploadUrl: r.uploadThumbnail ? 'https://li-upload.example/thumb' : undefined } });
+  }
+  if (u.host === 'li-upload.example') {
+    if (u.pathname === '/thumb') { li.thumb = p.payload; return res(201, ''); }
+    li.parts.push(...p.payload);
+    return res(200, '', { ETag: `"e${u.pathname.split('/').pop()}"` });
+  }
+  if (u.searchParams.get('action') === 'finalizeUpload') { li.finalize = JSON.parse(p.payload).finalizeUploadRequest; return res(200, ''); }
+  if (u.pathname.startsWith('/rest/videos/')) return res(200, { status: li.status.shift() || 'AVAILABLE' });
+  if (u.pathname === '/rest/posts') { li.post = JSON.parse(p.payload); li.headers = p.headers; return res(201, '', { 'x-restli-id': 'urn:li:share:7' }); }
+  return err(500, `unhandled linkedin ${m} ${u}`);
 }
 
 function load() {
@@ -104,10 +127,11 @@ function load() {
       Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, s) => [...crypto.createHash('sha256').update(s, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
       getUuid: () => crypto.randomUUID(),
+      sleep: () => {},
       newBlob: (str) => ({ getBytes: () => [...Buffer.from(str, 'utf8')] }),
     },
   });
-  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'store', 'worker', 'api']) {
+  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'linkedin', 'store', 'worker', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
   const sheet = fakeSheet(vm.runInContext('JOB_COLS', ctx));
