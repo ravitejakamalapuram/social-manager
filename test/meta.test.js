@@ -88,3 +88,13 @@ test('channel shows the connected accounts', () => {
   assert.equal(t.call('GET', { action: 'channel', token: t.admin, platform: 'instagram' }).title, 'howto');
   assert.equal(t.call('GET', { action: 'channel', token: t.admin, platform: 'facebook' }).title, 'How To');
 });
+
+test('instagram: an upload error with no reason is retried, not failed', () => {
+  const t = setup();
+  t.google.meta.failNextUpload = true;
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } });
+  t.call('POST', { action: 'run', token: t.admin });
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'queued', JSON.stringify(job));
+  assert.match(job.error, /Will retry: Meta answered 400/);
+});

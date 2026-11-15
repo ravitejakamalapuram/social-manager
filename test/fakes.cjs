@@ -120,6 +120,7 @@ function fakeMeta(g, u, m, p) {
   if (u.host === 'rupload.facebook.com') {
     const id = parts[parts.length - 1];
     const up = meta.uploads[id];
+    if (meta.failNextUpload) { meta.failNextUpload = false; return res(400, {}); }
     if (Number(p.headers.offset) !== up.got.length) return res(400, { error: { code: 100, message: 'bad offset' } });
     up.got.push(...p.payload);
     return res(200, { success: true });
