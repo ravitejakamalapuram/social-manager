@@ -136,9 +136,9 @@ YouTube gives each API project 10,000 quota units a day. An upload costs about 1
 YouTube locks every video uploaded through an API project that hasn't passed its free compliance audit to private, and those videos can't be made public later, only uploaded again. The result shows a warning when this happens. The fix: move the script to your own Google Cloud project and apply for the audit (see the next question). Until it passes, upload from the YouTube app and use `videoId` to set everything else.
 
 ### How do I apply for the YouTube audit?
-1. In [console.cloud.google.com](https://console.cloud.google.com) create a project, enable the **YouTube Data API v3** and **Google Drive API**, and set up the OAuth consent screen.
+1. In [console.cloud.google.com](https://console.cloud.google.com) create a project, enable the **YouTube Data API v3**, **Google Drive API** and **Apps Script API**, and set up the OAuth consent screen (home page, privacy policy, then publish).
 2. In the Apps Script editor, Project Settings → Google Cloud Platform project → Change project, and enter the project number. Run `setup` again to authorize.
-3. Fill in the [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form) for that project. Approval can take a few weeks.
+3. Fill in the [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form) for that project. It asks for screenshots of the privacy policy ([PRIVACY.md](../PRIVACY.md)), the terms ([TERMS.md](../TERMS.md)) and the sign-in screen, and a link to this repo as the working upload code. Approval can take a few weeks.
 
 ### It posts to the wrong channel. What do I do?
 `channel` and `setup` show the channel. By default the script posts as its Google account's own channel. A brand channel (one listed separately under your account) needs its own sign-in:
