@@ -1,5 +1,19 @@
 {
   "timeZone": "Asia/Kolkata",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "YouTubeService",
+        "serviceId": "youtube",
+        "version": "v3"
+      },
+      {
+        "userSymbol": "DriveService",
+        "serviceId": "drive",
+        "version": "v3"
+      }
+    ]
+  },
   "runtimeVersion": "V8",
   "exceptionLogging": "STACKDRIVER",
   "oauthScopes": [

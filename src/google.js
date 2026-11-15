@@ -7,7 +7,7 @@ function google_(method, url, opts) {
   const params = {
     method,
     muteHttpExceptions: true,
-    headers: Object.assign({ Authorization: `Bearer ${ScriptApp.getOAuthToken()}` }, o.headers || {}),
+    headers: Object.assign({ Authorization: `Bearer ${url.includes('/youtube/') ? youTubeToken_() : ScriptApp.getOAuthToken()}` }, o.headers || {}),
   };
   if (o.json !== undefined) {
     params.contentType = 'application/json; charset=UTF-8';

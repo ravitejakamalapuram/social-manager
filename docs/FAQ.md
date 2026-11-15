@@ -141,7 +141,11 @@ YouTube locks every video uploaded through an API project that hasn't passed its
 3. Fill in the [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form) for that project. Approval can take a few weeks.
 
 ### It posts to the wrong channel. What do I do?
-`channel` and `setup` show the channel. Social Manager posts to the default channel of the Google account that owns the script. If your channel is a brand account, make it the default channel for that account at youtube.com/account, then run `setup` again.
+`channel` and `setup` show the channel. By default the script posts as its Google account's own channel. A brand channel (one listed separately under your account) needs its own sign-in:
+1. In a Google Cloud project with the YouTube Data API on, create an OAuth client of type "Web application" with the redirect URI `https://script.google.com/macros/d/<script id>/usercallback`.
+2. In the script's Project Settings → Script properties, add `YT_CLIENT_ID` and `YT_CLIENT_SECRET` from that client.
+3. Run `connectYouTube` in the editor, open the link it logs, pick the brand channel and press Allow.
+From then on every YouTube call uses that channel. Run `connectYouTube` again to switch channels.
 
 ### How do I set it up?
 See the [README](../README.md#set-up-once).

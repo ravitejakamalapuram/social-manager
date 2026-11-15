@@ -107,7 +107,7 @@ function load() {
       newBlob: (str) => ({ getBytes: () => [...Buffer.from(str, 'utf8')] }),
     },
   });
-  for (const f of ['core', 'google', 'youtube', 'store', 'worker', 'api']) {
+  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'store', 'worker', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
   const sheet = fakeSheet(vm.runInContext('JOB_COLS', ctx));
