@@ -23,7 +23,7 @@ Free Google services, so there is nothing to host:
 In this repo. `src/` is the app, `test/` holds the tests, and `docs/` holds this FAQ.
 
 ### How does new code go live?
-Every push to `main` deploys by itself (`.github/workflows/deploy.yml`). The URL never changes.
+The script deploys itself. Every hour it fetches `dist/Code.js` and the manifest from `main` on GitHub. If they changed, it updates its own code, makes a new version and points the web app at it. The URL never changes, and no credentials are stored in GitHub. To deploy right away, an admin calls `deploy`, or runs `deployLatest` in the editor. If new code adds a permission, open the editor and run `setup` once to allow it.
 
 ---
 
@@ -59,6 +59,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | `retry` | Puts a failed job back in the queue. It carries on from the step that failed. |
 | `cancel` | Cancels a job that hasn't uploaded its video yet. |
 | `run` | Works the queue now instead of waiting for the trigger (admin). |
+| `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"force": true` to redeploy unchanged code. |
 | `createToken`, `revokeToken`, `listTokens` | Manage tokens (admin). |
 
 ---

@@ -23,14 +23,12 @@ Post videos to social platforms from one API call, with no browser. Put the vide
 
 ## Set up (once)
 
-1. Create a new project at [script.google.com](https://script.google.com) named **Social Manager**, signed in to the Google account that owns the YouTube channel. Copy its Script ID (Project Settings).
-2. In this repo's GitHub settings, add the secret `CLASPRC_JSON` (the contents of `~/.clasprc.json` after `npx @google/clasp@3.4.1 login`) and the variable `SCRIPT_ID`. Then run the **deploy** workflow. It pushes the code and creates the web app.
-3. In the editor, Deploy → Manage deployments → edit the deployment → set **Who has access** to **Anyone**.
-4. Pick **setup** and press **Run**. Allow the permissions (YouTube, Drive read-only, Sheets, external requests, triggers). The log shows the jobs sheet, the YouTube channel and the admin token (shown once).
+1. Create a new project at [script.google.com](https://script.google.com) named **Social Manager**, signed in to the Google account that owns the YouTube channel. Make sure the Apps Script API is on at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
+2. Paste `dist/Code.js` over `Code.gs`. In Project Settings, tick "Show appsscript.json", and paste `src/appsscript.json` over it.
+3. Pick **setup** and press **Run**. Allow the permissions. The log shows the jobs sheet, the YouTube channel and the admin token (shown once).
+4. Pick **deployLatest** and press **Run**. It creates the web app and logs its URL. From then on the script updates itself from `main` every hour.
 5. Run **createTokenForClaude** for the token Claude's jobs use.
 6. Check it: `SOCIAL_URL=... SOCIAL_TOKEN=... npm run smoke`.
-
-Without GitHub: paste `dist/Code.js` into the editor (it is all of `src/` in one file), set the manifest from `src/appsscript.json`, and deploy as a web app.
 
 ## Develop
 

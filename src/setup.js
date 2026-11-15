@@ -22,9 +22,9 @@ function setup() {
   sh.getRange(1, 1, 1, JOB_COLS.length).setValues([JOB_COLS]).setFontWeight('bold');
   sh.setFrozenRows(1);
 
-  if (!ScriptApp.getProjectTriggers().some((t) => t.getHandlerFunction() === 'runQueue')) {
-    ScriptApp.newTrigger('runQueue').timeBased().everyMinutes(5).create();
-  }
+  const handlers = ScriptApp.getProjectTriggers().map((t) => t.getHandlerFunction());
+  if (!handlers.includes('runQueue')) ScriptApp.newTrigger('runQueue').timeBased().everyMinutes(5).create();
+  if (!handlers.includes('deployLatest')) ScriptApp.newTrigger('deployLatest').timeBased().everyHours(1).create();
 
   const lines = [`Jobs sheet: ${ss.getUrl()}`];
   try {
