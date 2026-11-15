@@ -141,7 +141,7 @@ MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 
 ### How do I connect Instagram and Facebook?
 One Meta developer app covers both. The Instagram account must be a professional (business or creator) account linked to the Facebook Page.
 1. At [developers.facebook.com](https://developers.facebook.com/apps/) create an app with the use cases for managing a Page and Instagram content. Add `https://script.google.com/macros/d/<script id>/usercallback` to Facebook Login's "Valid OAuth Redirect URIs", add a privacy policy link ([PRIVACY.md](../PRIVACY.md)), and switch the app to Live.
-2. In the script's Project Settings → Script properties, add `META_APP_ID` and `META_APP_SECRET` from the app's Basic settings.
+2. In the script's Project Settings → Script properties, add `META_APP_ID` and `META_APP_SECRET` from the app's Basic settings. If the app uses Facebook Login for Business, also create a configuration (user access token, the six permissions in `src/meta.js`) and add its id as `META_CONFIG_ID`.
 3. Run `connectMeta` in the editor, open the link it logs, tick the Page and the Instagram account and press Continue.
 The script keeps a Page token that doesn't expire. `channel` with `platform` `instagram` or `facebook` shows the connected accounts. Run `connectMeta` again to switch Pages or after changing your Facebook password.
 

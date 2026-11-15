@@ -21,7 +21,9 @@ function connectMeta() {
     throw new Error('Add the META_APP_ID and META_APP_SECRET script properties first (see the FAQ).');
   }
   const state = ScriptApp.newStateToken().withMethod('metaCallback').withTimeout(600).createToken();
-  const q = { client_id: p.getProperty('META_APP_ID'), redirect_uri: ytRedirectUri_(), response_type: 'code', scope: META_SCOPES.join(','), state };
+  const q = { client_id: p.getProperty('META_APP_ID'), redirect_uri: ytRedirectUri_(), response_type: 'code', state };
+  // Apps that use Facebook Login for Business name a configuration instead of a list of permissions.
+  if (p.getProperty('META_CONFIG_ID')) q.config_id = p.getProperty('META_CONFIG_ID'); else q.scope = META_SCOPES.join(',');
   const url = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${Object.keys(q).map((k) => `${k}=${encodeURIComponent(q[k])}`).join('&')}`;
   console.log(`Open this link, pick the Page and Instagram account, and press Continue (valid 10 minutes):\n${url}`);
   return url;
