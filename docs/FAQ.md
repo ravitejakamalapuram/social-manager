@@ -1,13 +1,13 @@
-# Publisher FAQ
+# Social Manager FAQ
 
-Short answers about what Publisher is and how to use it. If you are an AI agent starting work with Publisher, read this page first. It has everything you need to call the API.
+Short answers about what Social Manager is and how to use it. If you are an AI agent starting work with Social Manager, read this page first. It has everything you need to call the API.
 
 ---
 
 ## The basics
 
-### What is Publisher?
-Publisher posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Publisher uploads it and sets everything up.
+### What is Social Manager?
+Social Manager posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Social Manager uploads it and sets everything up.
 
 ### Which platforms does it support?
 YouTube today. Instagram and Facebook are planned. Each platform is one adapter file, so adding one doesn't change the others.
@@ -16,7 +16,7 @@ YouTube today. Instagram and Facebook are planned. Each platform is one adapter 
 Free Google services, so there is nothing to host:
 
 - A **Google Apps Script web app** is the API. It is one URL.
-- A **Google Sheet** named "Publisher" keeps one row per job, so you can see what happened.
+- A **Google Sheet** named "Social Manager" keeps one row per job, so you can see what happened.
 - A **time trigger** runs the queue every 5 minutes.
 
 ### Where is the code?
@@ -36,12 +36,12 @@ The web app's `/exec` URL. The owner gives you the URL and a token. Neither is e
 Send JSON with POST, and always include `action` and `token`:
 
 ```bash
-curl -sL "$PUBLISHER_URL" -d '{"action":"list","token":"'"$T"'"}'
+curl -sL "$SOCIAL_URL" -d '{"action":"list","token":"'"$T"'"}'
 ```
 
 - Use `curl -L`. Google answers a POST with a redirect, and `-L` follows it.
 - Don't pass `-X POST`. It breaks the redirect.
-- Reads also work as GET: `curl -sL "$PUBLISHER_URL?action=list&token=$T"`.
+- Reads also work as GET: `curl -sL "$SOCIAL_URL?action=list&token=$T"`.
 
 ### How do I know if a call worked?
 The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": false, "error": {"code": "...", "message": "..."}}`. The message says what to fix.
@@ -140,7 +140,7 @@ YouTube locks every video uploaded through an API project that hasn't passed its
 3. Fill in the [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form) for that project. Approval can take a few weeks.
 
 ### It posts to the wrong channel. What do I do?
-`channel` and `setup` show the channel. Publisher posts to the default channel of the Google account that owns the script. If your channel is a brand account, make it the default channel for that account at youtube.com/account, then run `setup` again.
+`channel` and `setup` show the channel. Social Manager posts to the default channel of the Google account that owns the script. If your channel is a brand account, make it the default channel for that account at youtube.com/account, then run `setup` again.
 
 ### How do I set it up?
 See the [README](../README.md#set-up-once).

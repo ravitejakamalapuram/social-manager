@@ -110,7 +110,7 @@ function listTokens_() {
 // ---------- jobs ----------
 
 function health_() {
-  return { service: 'publisher', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
+  return { service: 'social-manager', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
 }
 
 function platformsInfo_() {

@@ -1,7 +1,7 @@
-// Read-only check of a live deployment: PUBLISHER_URL=... PUBLISHER_TOKEN=... npm run smoke
-const url = process.env.PUBLISHER_URL;
-const token = process.env.PUBLISHER_TOKEN;
-if (!url || !token) { console.error('Set PUBLISHER_URL and PUBLISHER_TOKEN'); process.exit(1); }
+// Read-only check of a live deployment: SOCIAL_URL=... SOCIAL_TOKEN=... npm run smoke
+const url = process.env.SOCIAL_URL;
+const token = process.env.SOCIAL_TOKEN;
+if (!url || !token) { console.error('Set SOCIAL_URL and SOCIAL_TOKEN'); process.exit(1); }
 
 const get = async (q) => (await fetch(`${url}?${new URLSearchParams(Object.assign({ token }, q))}`)).json();
 let failed = 0;

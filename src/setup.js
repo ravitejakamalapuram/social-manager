@@ -11,7 +11,7 @@ function setup() {
     try { ss = SpreadsheetApp.openById(id); } catch (err) { ss = null; }
   }
   if (!ss) {
-    ss = SpreadsheetApp.create('Publisher');
+    ss = SpreadsheetApp.create('Social Manager');
     p.setProperty('SHEET_ID', ss.getId());
   }
   let sh = ss.getSheetByName('Jobs');

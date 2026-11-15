@@ -1,5 +1,5 @@
 {
-  "name": "publisher",
+  "name": "social-manager",
   "version": "1.0.0",
   "private": true,
   "description": "Post videos to social platforms (YouTube first) from an API, on Google Apps Script",
