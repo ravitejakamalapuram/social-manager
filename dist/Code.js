@@ -23,9 +23,9 @@ class ApiError extends Error {
   }
 }
 
-/** Every publishing platform. Adding Instagram later means one new file and one line here. */
+/** Every publishing platform. A new platform is one new file and one line here. */
 function platforms_() {
-  return { youtube: YouTube };
+  return { youtube: YouTube, instagram: Instagram, facebook: Facebook };
 }
 
 function adapterFor_(name) {
@@ -526,6 +526,299 @@ function youTubeToken_() {
   return t.access_token;
 }
 
+// ---- src/meta.js ----
+/**
+ * Meta sign-in and Graph API helpers, shared by the Instagram and Facebook adapters.
+ *
+ * Needs two Script Properties from a Meta developer app: META_APP_ID and META_APP_SECRET, with
+ * https://script.google.com/macros/d/<script id>/usercallback in the app's "Valid OAuth Redirect URIs".
+ * Then run connectMeta() in the editor and open the link it logs. The callback keeps a Page token that
+ * does not expire, the Page id and the id of the Instagram professional account linked to that Page.
+ */
+
+const GRAPH_VERSION = 'v24.0';
+const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const META_SCOPES = [
+  'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'business_management',
+  'instagram_basic', 'instagram_content_publish',
+];
+
+/** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
+function connectMeta() {
+  const p = props_();
+  if (!p.getProperty('META_APP_ID') || !p.getProperty('META_APP_SECRET')) {
+    throw new Error('Add the META_APP_ID and META_APP_SECRET script properties first (see the FAQ).');
+  }
+  const state = ScriptApp.newStateToken().withMethod('metaCallback').withTimeout(600).createToken();
+  const q = { client_id: p.getProperty('META_APP_ID'), redirect_uri: ytRedirectUri_(), response_type: 'code', scope: META_SCOPES.join(','), state };
+  const url = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${Object.keys(q).map((k) => `${k}=${encodeURIComponent(q[k])}`).join('&')}`;
+  console.log(`Open this link, pick the Page and Instagram account, and press Continue (valid 10 minutes):\n${url}`);
+  return url;
+}
+
+function metaCallback(req) {
+  try {
+    const p = props_();
+    const app = { client_id: p.getProperty('META_APP_ID'), client_secret: p.getProperty('META_APP_SECRET') };
+    const short = metaGet_('/oauth/access_token', Object.assign({ redirect_uri: ytRedirectUri_(), code: req.parameter.code }, app));
+    // A Page token read with a long-lived user token never expires.
+    const long = metaGet_('/oauth/access_token', Object.assign({ grant_type: 'fb_exchange_token', fb_exchange_token: short.access_token }, app));
+    const pages = metaGet_('/me/accounts', { fields: 'id,name,access_token,instagram_business_account{id,username}', access_token: long.access_token }).data || [];
+    const want = p.getProperty('META_PAGE_ID');
+    const page = pages.find((x) => x.id === want) || pages[0];
+    if (!page) return HtmlService.createHtmlOutput('Sign-in worked, but no Facebook Page was shared. Run connectMeta() again and tick your Page.');
+    p.setProperties({ META_PAGE_ID: page.id, META_PAGE_TOKEN: page.access_token });
+    const ig = page.instagram_business_account;
+    if (ig) p.setProperty('META_IG_ID', ig.id); else p.deleteProperty('META_IG_ID');
+    const igText = ig ? `Instagram: @${ig.username}.` : 'No Instagram professional account is linked to this Page, so Instagram posts will fail until one is.';
+    return HtmlService.createHtmlOutput(`Connected. Facebook Page: ${page.name}. ${igText} You can close this tab.`);
+  } catch (err) {
+    return HtmlService.createHtmlOutput(`Sign-in failed: ${err.message}`);
+  }
+}
+
+function metaConfig_(needIg) {
+  const p = props_();
+  const c = { token: p.getProperty('META_PAGE_TOKEN'), pageId: p.getProperty('META_PAGE_ID'), igId: p.getProperty('META_IG_ID') };
+  if (!c.token || !c.pageId) throw new ApiError('not_connected', 'Meta is not connected yet; run connectMeta() (see the FAQ)');
+  if (needIg && !c.igId) throw new ApiError('not_connected', 'No Instagram professional account is linked to the Facebook Page; link one, then run connectMeta() again');
+  return c;
+}
+
+function metaQuery_(params) {
+  return Object.keys(params).filter((k) => params[k] !== null && params[k] !== undefined)
+    .map((k) => `${k}=${encodeURIComponent(params[k])}`).join('&');
+}
+
+function metaFetch_(method, path, params) {
+  const url = path.startsWith('https://') ? path : `${GRAPH}${path}`;
+  const r = method === 'get'
+    ? UrlFetchApp.fetch(`${url}?${metaQuery_(params)}`, { method: 'get', muteHttpExceptions: true })
+    : UrlFetchApp.fetch(url, { method: 'post', muteHttpExceptions: true, payload: metaQuery_(params), contentType: 'application/x-www-form-urlencoded' });
+  const code = r.getResponseCode();
+  if (code >= 200 && code < 300) return JSON.parse(r.getContentText() || '{}');
+  throw metaError_(r);
+}
+
+function metaGet_(path, params) { return metaFetch_('get', path, params); }
+function metaPost_(path, params) { return metaFetch_('post', path, params); }
+
+/** Sends bytes to Meta's upload host (rupload.facebook.com), resuming at `offset`. */
+function metaUpload_(url, token, bytes, offset, size) {
+  const r = UrlFetchApp.fetch(url, {
+    method: 'post', muteHttpExceptions: true, payload: bytes, contentType: 'application/octet-stream',
+    headers: { Authorization: `OAuth ${token}`, offset: String(offset), file_size: String(size) },
+  });
+  if (r.getResponseCode() !== 200) throw metaError_(r);
+  return JSON.parse(r.getContentText() || '{}');
+}
+
+function metaError_(r) {
+  const code = r.getResponseCode();
+  let e = {};
+  try { e = JSON.parse(r.getContentText()).error || {}; } catch (err) { e = { message: String(r.getContentText()).slice(0, 300) }; }
+  const message = e.error_user_msg || e.message || '';
+  let retry = false;
+  // 4, 17, 32, 613: rate limits. 2 and is_transient: Meta's own temporary errors.
+  if ([4, 17, 32, 613].includes(e.code)) retry = 'quota';
+  else if (code >= 500 || e.is_transient || e.code === 2) retry = 'transient';
+  return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, retry });
+}
+
+/** Uploads a Drive file to a rupload URL in CHUNK_BYTES parts, recording progress in s.offset. */
+function metaSendFile_(p, s, ctx, url, token) {
+  while (s.offset < s.size) {
+    if (ctx.outOfTime()) return 'pause';
+    const end = Math.min(s.offset + CHUNK_BYTES, s.size) - 1;
+    metaUpload_(url, token, driveRange_(p.video.driveFileId, s.offset, end), s.offset, s.size);
+    s.offset = end + 1;
+    ctx.save();
+  }
+  return 'next';
+}
+
+function metaFileSize_(p, s) {
+  if (s.size) return;
+  const m = driveMeta_(p.video.driveFileId);
+  s.size = Number(m.size);
+  if (!s.size) throw new ApiError('invalid', 'The video file in Drive is empty');
+  s.offset = 0;
+}
+
+// ---- src/instagram.js ----
+/**
+ * Instagram adapter: posts a video from Drive as a Reel on the Instagram professional account linked
+ * to the connected Facebook Page (see src/meta.js). Instagram has no private or scheduled posts in its
+ * API, so publishAt makes the job wait in the queue until then.
+ */
+
+const Instagram = {
+  name: 'instagram',
+
+  validate(p, now) {
+    const video = optFile_(p.video, 'video');
+    if (!video) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}');
+    const caption = optText_(p.caption, 'caption', 2200);
+    if (caption && (caption.match(/#/g) || []).length > 30) throw new ApiError('invalid', 'Instagram allows at most 30 hashtags');
+    const coverMs = p.coverAtMs === undefined || p.coverAtMs === null ? null : Number(p.coverAtMs);
+    if (coverMs !== null && !(coverMs >= 0)) throw new ApiError('invalid', 'coverAtMs must be a number of milliseconds into the video');
+    const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
+    return {
+      video, caption, coverAtMs: coverMs, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
+      title: optText_(p.title, 'title', 100) || (caption || '').split('\n')[0].slice(0, 100),
+      notBefore: publishAt,
+    };
+  },
+
+  steps() {
+    return ['container', 'upload', 'process', 'publish', 'check'];
+  },
+
+  run(step, job, ctx) {
+    return IG_STEPS[step](job.post, job.state, ctx, metaConfig_(true));
+  },
+
+  whoami() {
+    const c = metaConfig_(true);
+    const r = metaGet_(`/${c.igId}`, { fields: 'username,name', access_token: c.token });
+    return { id: c.igId, title: r.username, url: `https://www.instagram.com/${r.username}/` };
+  },
+};
+
+const IG_STEPS = {
+  container(p, s, ctx, c) {
+    if (s.containerId) return 'next';
+    const r = metaPost_(`/${c.igId}/media`, {
+      media_type: 'REELS', upload_type: 'resumable', caption: p.caption, share_to_feed: String(p.shareToFeed),
+      thumb_offset: p.coverAtMs, access_token: c.token,
+    });
+    s.containerId = r.id;
+    s.uploadUrl = r.uri || `https://rupload.facebook.com/ig-api-upload/${GRAPH_VERSION}/${r.id}`;
+    ctx.save();
+    return 'next';
+  },
+
+  upload(p, s, ctx, c) {
+    metaFileSize_(p, s);
+    return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
+  },
+
+  /** Instagram processes the video before it can be published; this usually takes under a minute. */
+  process(p, s, ctx, c) {
+    for (;;) {
+      const r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status', access_token: c.token });
+      if (r.status_code === 'FINISHED' || r.status_code === 'PUBLISHED') return 'next';
+      if (r.status_code === 'ERROR' || r.status_code === 'EXPIRED') {
+        throw new ApiError('upstream', `Instagram could not process the video (${r.status_code}): ${r.status || 'no reason given'}. Reels must be MP4/MOV, 3 s to 15 min, 9:16 works best.`);
+      }
+      if (ctx.outOfTime()) return 'pause';
+      Utilities.sleep(10 * 1000);
+    }
+  },
+
+  publish(p, s, ctx, c) {
+    if (s.videoId) return 'next';
+    s.videoId = metaPost_(`/${c.igId}/media_publish`, { creation_id: s.containerId, access_token: c.token }).id;
+    ctx.save();
+    return 'next';
+  },
+
+  check(p, s, ctx, c) {
+    const r = metaGet_(`/${s.videoId}`, { fields: 'permalink,shortcode,timestamp', access_token: c.token });
+    ctx.result({ mediaId: s.videoId, url: r.permalink || null, publishedAt: r.timestamp || null });
+    return 'next';
+  },
+};
+
+// ---- src/facebook.js ----
+/**
+ * Facebook adapter: posts a video from Drive as a Reel on the connected Facebook Page (see src/meta.js).
+ * It can publish now, schedule with publishAt, or leave the Reel as a draft with "state": "draft".
+ */
+
+const FB_STATES = ['published', 'draft'];
+
+const Facebook = {
+  name: 'facebook',
+
+  validate(p, now) {
+    const video = optFile_(p.video, 'video');
+    if (!video) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}');
+    const state = optText_(p.state, 'state', 20) || 'published';
+    if (!FB_STATES.includes(state)) throw new ApiError('invalid', `state must be one of ${FB_STATES.join(', ')}`);
+    const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
+    if (publishAt && state === 'draft') throw new ApiError('invalid', 'Send publishAt or "state": "draft", not both');
+    const description = optText_(p.description, 'description', 5000);
+    return {
+      video, description, state, publishAt,
+      title: optText_(p.title, 'title', 100) || (description || '').split('\n')[0].slice(0, 100),
+    };
+  },
+
+  steps() {
+    return ['start', 'upload', 'finish', 'check'];
+  },
+
+  run(step, job, ctx) {
+    return FB_STEPS[step](job.post, job.state, ctx, metaConfig_(false));
+  },
+
+  whoami() {
+    const c = metaConfig_(false);
+    const r = metaGet_(`/${c.pageId}`, { fields: 'name,link', access_token: c.token });
+    return { id: c.pageId, title: r.name, url: r.link || `https://www.facebook.com/${c.pageId}` };
+  },
+};
+
+const FB_STEPS = {
+  start(p, s, ctx, c) {
+    if (s.reelId) return 'next';
+    const r = metaPost_(`/${c.pageId}/video_reels`, { upload_phase: 'start', access_token: c.token });
+    s.reelId = r.video_id;
+    s.uploadUrl = r.upload_url || `https://rupload.facebook.com/video-upload/${GRAPH_VERSION}/${r.video_id}`;
+    ctx.save();
+    return 'next';
+  },
+
+  upload(p, s, ctx, c) {
+    metaFileSize_(p, s);
+    return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
+  },
+
+  finish(p, s, ctx, c) {
+    if (s.videoId) return 'next';
+    metaPost_(`/${c.pageId}/video_reels`, {
+      upload_phase: 'finish', video_id: s.reelId, access_token: c.token,
+      video_state: p.publishAt ? 'SCHEDULED' : p.state.toUpperCase(),
+      scheduled_publish_time: p.publishAt ? Math.floor(new Date(p.publishAt).getTime() / 1000) : null,
+      description: p.description, title: p.title || null,
+    });
+    s.videoId = s.reelId;
+    ctx.save();
+    return 'next';
+  },
+
+  /** Waits for Facebook to finish processing, so a broken video shows up as a failed job. */
+  check(p, s, ctx, c) {
+    for (;;) {
+      const r = metaGet_(`/${s.videoId}`, { fields: 'status,permalink_url', access_token: c.token });
+      const st = r.status || {};
+      const phases = [st.uploading_phase, st.processing_phase, st.publishing_phase].filter(Boolean);
+      const bad = phases.find((x) => x.status === 'error');
+      if (st.video_status === 'error' || bad) {
+        throw new ApiError('upstream', `Facebook could not process the Reel: ${(bad && bad.errors && bad.errors[0] && bad.errors[0].message) || 'no reason given'}`);
+      }
+      if (st.video_status === 'ready' || (st.publishing_phase && st.publishing_phase.status === 'complete') || p.state === 'draft' || p.publishAt) {
+        const link = r.permalink_url ? (r.permalink_url.startsWith('http') ? r.permalink_url : `https://www.facebook.com${r.permalink_url}`) : `https://www.facebook.com/reel/${s.videoId}`;
+        ctx.result({ videoId: s.videoId, url: link, state: p.publishAt ? 'scheduled' : p.state, publishAt: p.publishAt || null, videoStatus: st.video_status || null });
+        return 'next';
+      }
+      if (ctx.outOfTime()) return 'pause';
+      Utilities.sleep(10 * 1000);
+    }
+  },
+};
+
 // ---- src/store.js ----
 /**
  * Jobs live in the "Jobs" tab of the Social Manager spreadsheet, one row each, so the owner can read them.
@@ -827,7 +1120,7 @@ function publish_(req, caller) {
     const iso = now.toISOString();
     const job = {
       id: newJobId_(now, Utilities.getUuid().slice(0, 4)), key, platform: adapter.name, status: 'queued',
-      title: post.title || post.videoId || '', attempts: 0, notBefore: null, createdAt: iso, updatedAt: iso,
+      title: post.title || post.videoId || '', attempts: 0, notBefore: post.notBefore || null, createdAt: iso, updatedAt: iso,
       caller: caller.name, result: null, error: null, post, state: {},
     };
     insertJob_(job);
@@ -941,6 +1234,9 @@ function setup() {
   } catch (err) {
     lines.push(`YouTube check failed: ${err.message}`);
   }
+  [Instagram, Facebook].forEach((a) => {
+    try { lines.push(`${a.name}: ${a.whoami().title}`); } catch (err) { lines.push(`${a.name}: ${err.message}`); }
+  });
   if (!Object.values(tokens_()).some((t) => t.admin)) {
     lines.push(`Admin token (shown once, keep it in a password manager): ${issueToken_('admin', true)}`);
   } else {

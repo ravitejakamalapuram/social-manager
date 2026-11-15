@@ -10,7 +10,7 @@ Short answers about what Social Manager is and how to use it. If you are an AI a
 Social Manager posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Social Manager uploads it and sets everything up.
 
 ### Which platforms does it support?
-YouTube today. Instagram and Facebook are planned. Each platform is one adapter file, so adding one doesn't change the others.
+YouTube, Instagram Reels and Facebook Page Reels. Each platform is one adapter file, so adding one doesn't change the others.
 
 ### What is it built on?
 Free Google services, so there is nothing to host:
@@ -127,9 +127,33 @@ Network hiccups are retried by themselves, up to 3 tries, 5 minutes apart. If Yo
 
 ---
 
+## Posting to Instagram and Facebook
+
+### How do I post a Reel to Instagram?
+Send `publish` with `"platform": "instagram"`, `video: {"driveFileId": "..."}` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverAtMs` picks the cover frame (milliseconds into the video), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
+
+### How do I post a Reel to a Facebook Page?
+Send `publish` with `"platform": "facebook"`, `video` and an optional `description` and `title`. Add `publishAt` to let Facebook schedule it, or `"state": "draft"` to keep it unpublished on the Page. The result has `videoId` and `url`.
+
+### What video works for Reels?
+MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason.
+
+### How do I connect Instagram and Facebook?
+One Meta developer app covers both. The Instagram account must be a professional (business or creator) account linked to the Facebook Page.
+1. At [developers.facebook.com](https://developers.facebook.com/apps/) create an app with the use cases for managing a Page and Instagram content. Add `https://script.google.com/macros/d/<script id>/usercallback` to Facebook Login's "Valid OAuth Redirect URIs", add a privacy policy link ([PRIVACY.md](../PRIVACY.md)), and switch the app to Live.
+2. In the script's Project Settings → Script properties, add `META_APP_ID` and `META_APP_SECRET` from the app's Basic settings.
+3. Run `connectMeta` in the editor, open the link it logs, tick the Page and the Instagram account and press Continue.
+The script keeps a Page token that doesn't expire. `channel` with `platform` `instagram` or `facebook` shows the connected accounts. Run `connectMeta` again to switch Pages or after changing your Facebook password.
+
+### Does the Meta app need App Review?
+No, as long as it only posts to Pages and Instagram accounts of people who have a role on the app (you, as its admin). App Review is only needed to post for other people's accounts.
+
+---
+
 ## Limits and setup
 
 ### How many videos can I post a day?
+Instagram allows 50 API posts per account per day, and Facebook has no fixed daily cap for Page Reels. For YouTube:
 YouTube gives each API project 10,000 quota units a day. An upload costs about 1,600, and a thumbnail, caption or playlist about 50 to 400 more, so plan on about 5 uploads a day. Editing existing videos is cheap. Quota resets at midnight Pacific time.
 
 ### Why did my upload stay private?
