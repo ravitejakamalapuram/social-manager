@@ -1,7 +1,7 @@
 // Builds dist/Code.js: every src file in load order, as one file to paste into the Apps Script editor.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
-export const ORDER = ['core', 'google', 'youtube', 'youtube-auth', 'linkedin', 'store', 'worker', 'api', 'deploy', 'setup'];
+export const ORDER = ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'api', 'deploy', 'setup'];
 const parts = ORDER.map((f) => `// ---- src/${f}.js ----\n${readFileSync(new URL(`../src/${f}.js`, import.meta.url), 'utf8').trim()}\n`);
 mkdirSync(new URL('../dist/', import.meta.url), { recursive: true });
 writeFileSync(

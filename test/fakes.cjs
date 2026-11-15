@@ -32,7 +32,7 @@ const err = (code, reason) => res(code, { error: { message: reason, errors: [{ r
 /** Fake Drive + YouTube. `fail` lets a test make one kind of call fail. */
 function fakeGoogle() {
   const g = {
-    files: {}, videos: {}, sessions: {}, thumbnails: {}, captions: [], playlistItems: [],
+    meta: { uploads: {}, published: [] }, files: {}, videos: {}, sessions: {}, thumbnails: {}, captions: [], playlistItems: [],
     playlists: [{ id: 'PLdocs', snippet: { title: 'Documentaries' } }],
     calls: [], fail: {}, li: { parts: [], status: [] },
   };
@@ -84,6 +84,7 @@ function fakeGoogle() {
     if (u.pathname === '/youtube/v3/playlists') return res(200, { items: g.playlists });
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
+    if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
     if (u.pathname === '/youtube/v3/channels') return res(200, { items: [{ id: 'UC1', snippet: { title: 'My channel' } }] });
     return err(500, `unhandled ${m} ${url}`);
   };
@@ -112,6 +113,44 @@ function fakeLinkedIn(g, u, m, p) {
   return err(500, `unhandled linkedin ${m} ${u}`);
 }
 
+/** Fake Meta Graph API: Instagram containers and Facebook Page Reels. */
+function fakeMeta(g, u, m, p) {
+  const meta = g.meta;
+  const parts = u.pathname.split('/').filter(Boolean).slice(1); // drop the version
+  if (u.host === 'rupload.facebook.com') {
+    const id = parts[parts.length - 1];
+    const up = meta.uploads[id];
+    if (Number(p.headers.offset) !== up.got.length) return res(400, { error: { code: 100, message: 'bad offset' } });
+    up.got.push(...p.payload);
+    return res(200, { success: true });
+  }
+  const q = m === 'get' ? Object.fromEntries(u.searchParams) : Object.fromEntries(new URLSearchParams(p.payload));
+  if (q.access_token !== 'page-token') return res(400, { error: { code: 190, message: 'Invalid OAuth access token' } });
+  if (parts[1] === 'media' && m === 'post') {
+    const id = `c${Object.keys(meta.uploads).length + 1}`;
+    meta.uploads[id] = { kind: 'ig', params: q, got: [], polls: 0 };
+    return res(200, { id, uri: `https://rupload.facebook.com/ig-api-upload/v24.0/${id}` });
+  }
+  if (parts[1] === 'media_publish') {
+    const id = `m${meta.published.length + 1}`;
+    meta.published.push({ id, container: q.creation_id });
+    return res(200, { id });
+  }
+  if (parts[1] === 'video_reels' && q.upload_phase === 'start') {
+    const id = `r${Object.keys(meta.uploads).length + 1}`;
+    meta.uploads[id] = { kind: 'fb', got: [], polls: 0 };
+    return res(200, { video_id: id, upload_url: `https://rupload.facebook.com/video-upload/v24.0/${id}` });
+  }
+  if (parts[1] === 'video_reels' && q.upload_phase === 'finish') { meta.uploads[q.video_id].finish = q; return res(200, { success: true }); }
+  const up = meta.uploads[parts[0]];
+  if (up && up.kind === 'ig') return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.igStatus || 'FINISHED' });
+  if (up && up.kind === 'fb') return res(200, { status: { video_status: up.polls++ < 1 ? 'processing' : 'ready' }, permalink_url: `/reel/${parts[0]}` });
+  if (parts[0].startsWith('m')) return res(200, { permalink: `https://www.instagram.com/reel/${parts[0]}/`, timestamp: '2026-11-15T00:00:00+0000' });
+  if (parts[0] === 'ig1') return res(200, { username: 'howto' });
+  if (parts[0] === 'page1') return res(200, { name: 'How To', link: 'https://www.facebook.com/howto' });
+  return res(500, { error: { code: 1, message: `unhandled ${m} ${u}` } });
+}
+
 function load() {
   const store = {};
   const google = fakeGoogle();
@@ -131,7 +170,7 @@ function load() {
       newBlob: (str) => ({ getBytes: () => [...Buffer.from(str, 'utf8')] }),
     },
   });
-  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'linkedin', 'store', 'worker', 'api']) {
+  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
   const sheet = fakeSheet(vm.runInContext('JOB_COLS', ctx));
