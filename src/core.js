@@ -22,7 +22,7 @@ class ApiError extends Error {
 
 /** Every publishing platform. A new platform is one new file and one line here. */
 function platforms_() {
-  return { youtube: YouTube, instagram: Instagram, facebook: Facebook };
+  return { youtube: YouTube, instagram: Instagram, facebook: Facebook, linkedin: LinkedIn };
 }
 
 function adapterFor_(name) {

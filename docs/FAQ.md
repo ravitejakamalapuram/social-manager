@@ -10,7 +10,7 @@ Short answers about what Social Manager is and how to use it. If you are an AI a
 Social Manager posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Social Manager uploads it and sets everything up.
 
 ### Which platforms does it support?
-YouTube, Instagram Reels and Facebook Page Reels. Each platform is one adapter file, so adding one doesn't change the others.
+YouTube, Instagram Reels, Facebook Page Reels and LinkedIn (your personal profile). Each platform is one adapter file, so adding one doesn't change the others.
 
 ### What is it built on?
 Free Google services, so there is nothing to host:
@@ -52,7 +52,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | --- | --- |
 | `health` | Is it up? No token needed. |
 | `platforms` | Lists the platforms. |
-| `channel` | Shows which YouTube channel it posts to. |
+| `channel` | Shows which YouTube channel it posts to. Send `"platform": "linkedin"` for the LinkedIn profile and when its sign-in runs out. |
 | `publish` | Queues a post. Returns a job. |
 | `get` | One job, by `id` or by your `key`. |
 | `list` | Recent jobs, newest first. Filters: `status`, `platform`, `limit` (max 200). |
@@ -126,6 +126,22 @@ The queue runs every 5 minutes. A Short takes under a minute to upload. A big vi
 Network hiccups are retried by themselves, up to 3 tries, 5 minutes apart. If YouTube's daily quota is used up, the job waits and tries again every hour. Anything else marks the job `failed` with the reason in `error`. Fix the cause and call `retry`: it continues from the failed step, so a finished upload is never repeated.
 
 ---
+
+## Posting to LinkedIn
+
+### How do I post a video to LinkedIn?
+Send `publish` with `"platform": "linkedin"`, `video` (`{"driveFileId": ...}`, an MP4 of 75 KB to 500 MB and 3 seconds to 30 minutes), `text` (the post, up to 3,000 characters; `#words` become hashtags), and optional `title`, `thumbnail` and `visibility` (`PUBLIC`, the default, `CONNECTIONS` or `LOGGED_IN`). It posts straight away: LinkedIn has no private or scheduled posts, so `publishAt` is refused. The result has the post's `url`.
+
+### Can it post to a LinkedIn company page?
+Not yet. Posting as a page needs LinkedIn's Community Management API, which LinkedIn only grants to a verified organization after review. Today it posts as the person who signed in.
+
+### How do I connect LinkedIn?
+1. On developer.linkedin.com create an app (it must be linked to a LinkedIn page), add the products "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect", and add the redirect URL `https://script.google.com/macros/d/<script id>/usercallback` under Auth.
+2. In the script's Script properties add `LI_CLIENT_ID` and `LI_CLIENT_SECRET` from the app's Auth tab.
+3. Run `connectLinkedIn` in the editor, open the link it logs and press Allow.
+
+### Why does LinkedIn need signing in again?
+LinkedIn sign-ins last 60 days and LinkedIn gives small apps no way to renew them. `channel` with `"platform": "linkedin"` shows `tokenExpiresAt`, and posts get a warning in the last 10 days. Run `connectLinkedIn` again before then; if LinkedIn still remembers you, it's one click.
 
 ## Posting to Instagram and Facebook
 
