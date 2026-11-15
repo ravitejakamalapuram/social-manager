@@ -1,6 +1,6 @@
 # social-manager
 
-Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Manager does the rest. It runs free on your Google account, with nothing to host. YouTube works today; Instagram and Facebook come next.
+Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Manager does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels and Facebook Page Reels.
 
 ```
  Claude tasks / scripts / curl

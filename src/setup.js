@@ -33,6 +33,9 @@ function setup() {
   } catch (err) {
     lines.push(`YouTube check failed: ${err.message}`);
   }
+  [Instagram, Facebook].forEach((a) => {
+    try { lines.push(`${a.name}: ${a.whoami().title}`); } catch (err) { lines.push(`${a.name}: ${err.message}`); }
+  });
   if (!Object.values(tokens_()).some((t) => t.admin)) {
     lines.push(`Admin token (shown once, keep it in a password manager): ${issueToken_('admin', true)}`);
   } else {

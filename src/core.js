@@ -20,9 +20,9 @@ class ApiError extends Error {
   }
 }
 
-/** Every publishing platform. Adding Instagram later means one new file and one line here. */
+/** Every publishing platform. A new platform is one new file and one line here. */
 function platforms_() {
-  return { youtube: YouTube };
+  return { youtube: YouTube, instagram: Instagram, facebook: Facebook };
 }
 
 function adapterFor_(name) {

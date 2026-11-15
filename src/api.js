@@ -145,7 +145,7 @@ function publish_(req, caller) {
     const iso = now.toISOString();
     const job = {
       id: newJobId_(now, Utilities.getUuid().slice(0, 4)), key, platform: adapter.name, status: 'queued',
-      title: post.title || post.videoId || '', attempts: 0, notBefore: null, createdAt: iso, updatedAt: iso,
+      title: post.title || post.videoId || '', attempts: 0, notBefore: post.notBefore || null, createdAt: iso, updatedAt: iso,
       caller: caller.name, result: null, error: null, post, state: {},
     };
     insertJob_(job);
