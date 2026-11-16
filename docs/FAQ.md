@@ -123,7 +123,7 @@ Things that went wrong without stopping the post. A bad thumbnail, caption or pl
 The queue runs every 5 minutes. A Short takes under a minute to upload. A big video uploads in 20 MB parts, and if it runs out of time it carries on in the next run. Admins can call `run` to start right away.
 
 ### What if something fails?
-Network hiccups, and Meta errors that give no reason, are retried by themselves, up to 3 tries, 5 minutes apart. If YouTube's daily quota is used up, the job waits and tries again every hour. Anything else marks the job `failed` with the reason in `error`. Fix the cause and call `retry`: it continues from the failed step, so a finished upload is never repeated.
+Network hiccups, and Meta errors that give no reason, are retried by themselves, up to 3 tries, 5 minutes apart. If YouTube's daily quota is used up, the job waits and tries again every hour. Anything else marks the job `failed` with the reason in `error`, starting with the step that failed (for example `upload step: ...`). Fix the cause and call `retry`: it continues from the failed step, so a finished upload is never repeated.
 
 ---
 
