@@ -30,6 +30,26 @@ const Facebook = {
     return FB_STEPS[step](job.post, job.state, ctx, metaConfig_(false));
   },
 
+  /** Page followers and the newest Reels with likes, comments and plays (plays need read_insights). */
+  stats(limit) {
+    const c = metaConfig_(false);
+    const page = metaGet_(`/${c.pageId}`, { fields: 'followers_count,fan_count', access_token: c.token });
+    const reels = metaGet_(`/${c.pageId}/video_reels`, {
+      fields: 'id,permalink_url,description,created_time,likes.summary(true).limit(0),comments.summary(true).limit(0)', limit, access_token: c.token,
+    }).data || [];
+    const ins = metaInsightsEach_(reels, (v) => metaGet_(`/${v.id}/video_insights`, { metric: 'blue_reels_play_count,post_impressions_unique', access_token: c.token }));
+    const total = (x) => (x && x.summary && x.summary.total_count != null ? x.summary.total_count : null);
+    const followers = page.followers_count != null ? page.followers_count : page.fan_count;
+    return {
+      followers: followers == null ? null : followers,
+      posts: reels.map((v, i) => ({
+        url: /^https?:/.test(v.permalink_url || '') ? v.permalink_url : `https://www.facebook.com${v.permalink_url || `/reel/${v.id}`}`,
+        title: firstLine_(v.description), at: v.created_time, likes: total(v.likes), comments: total(v.comments),
+        views: ins[i] && metaMetric_(ins[i], 'blue_reels_play_count'), reach: ins[i] && metaMetric_(ins[i], 'post_impressions_unique'),
+      })),
+    };
+  },
+
   whoami() {
     const c = metaConfig_(false);
     const r = metaGet_(`/${c.pageId}`, { fields: 'name,link', access_token: c.token });

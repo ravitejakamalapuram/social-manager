@@ -541,6 +541,8 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const META_SCOPES = [
   'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'business_management',
   'instagram_basic', 'instagram_content_publish',
+  // Views and reach of posts, for the stats action. Accounts connected before these were added get null views until connectMeta() is run again.
+  'instagram_manage_insights', 'read_insights',
 ];
 
 /** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
@@ -651,6 +653,27 @@ function metaFileSize_(p, s) {
   s.offset = 0;
 }
 
+/**
+ * Calls fn for each post until one fails, then gives null for the rest: a missing insights permission
+ * fails every call the same way, so one failure is enough to stop asking.
+ */
+function metaInsightsEach_(posts, fn) {
+  let ok = true;
+  return posts.map((p) => {
+    if (!ok) return null;
+    try { return fn(p); } catch (e) { ok = false; console.log(`Meta insights: ${e.message}`); return null; }
+  });
+}
+
+/** The value of one metric in an insights answer, or null. */
+function metaMetric_(r, name) {
+  const m = (r.data || []).find((x) => x.name === name);
+  const v = m && m.values && m.values[0] ? m.values[0].value : m && m.total_value ? m.total_value.value : null;
+  return v == null ? null : Number(v);
+}
+
+const firstLine_ = (s) => String(s || '').split('\n')[0].slice(0, 100);
+
 // ---- src/instagram.js ----
 /**
  * Instagram adapter: posts a video from Drive as a Reel on the Instagram professional account linked
@@ -682,6 +705,21 @@ const Instagram = {
 
   run(step, job, ctx) {
     return IG_STEPS[step](job.post, job.state, ctx, metaConfig_(true));
+  },
+
+  /** Followers and the newest posts with likes, comments, views and reach (views need instagram_manage_insights). */
+  stats(limit) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'followers_count', access_token: c.token });
+    const media = metaGet_(`/${c.igId}/media`, { fields: 'id,permalink,caption,timestamp,like_count,comments_count', limit, access_token: c.token }).data || [];
+    const ins = metaInsightsEach_(media, (m) => metaGet_(`/${m.id}/insights`, { metric: 'views,reach', access_token: c.token }));
+    return {
+      followers: me.followers_count == null ? null : me.followers_count,
+      posts: media.map((m, i) => ({
+        url: m.permalink, title: firstLine_(m.caption), at: m.timestamp, likes: m.like_count == null ? null : m.like_count,
+        comments: m.comments_count == null ? null : m.comments_count, views: ins[i] && metaMetric_(ins[i], 'views'), reach: ins[i] && metaMetric_(ins[i], 'reach'),
+      })),
+    };
   },
 
   whoami() {
@@ -780,6 +818,26 @@ const Facebook = {
 
   run(step, job, ctx) {
     return FB_STEPS[step](job.post, job.state, ctx, metaConfig_(false));
+  },
+
+  /** Page followers and the newest Reels with likes, comments and plays (plays need read_insights). */
+  stats(limit) {
+    const c = metaConfig_(false);
+    const page = metaGet_(`/${c.pageId}`, { fields: 'followers_count,fan_count', access_token: c.token });
+    const reels = metaGet_(`/${c.pageId}/video_reels`, {
+      fields: 'id,permalink_url,description,created_time,likes.summary(true).limit(0),comments.summary(true).limit(0)', limit, access_token: c.token,
+    }).data || [];
+    const ins = metaInsightsEach_(reels, (v) => metaGet_(`/${v.id}/video_insights`, { metric: 'blue_reels_play_count,post_impressions_unique', access_token: c.token }));
+    const total = (x) => (x && x.summary && x.summary.total_count != null ? x.summary.total_count : null);
+    const followers = page.followers_count != null ? page.followers_count : page.fan_count;
+    return {
+      followers: followers == null ? null : followers,
+      posts: reels.map((v, i) => ({
+        url: /^https?:/.test(v.permalink_url || '') ? v.permalink_url : `https://www.facebook.com${v.permalink_url || `/reel/${v.id}`}`,
+        title: firstLine_(v.description), at: v.created_time, likes: total(v.likes), comments: total(v.comments),
+        views: ins[i] && metaMetric_(ins[i], 'blue_reels_play_count'), reach: ins[i] && metaMetric_(ins[i], 'post_impressions_unique'),
+      })),
+    };
   },
 
   whoami() {
@@ -1225,6 +1283,7 @@ const ROUTES = {
   health: { auth: false, fn: health_ },
   platforms: { fn: platformsInfo_ },
   channel: { fn: (req) => adapterFor_(req.platform || 'youtube').whoami() },
+  stats: { fn: (req) => stats_(req) },
   publish: { write: true, fn: publish_ },
   get: { fn: (req) => ({ job: presentJob_(jobByIdOrKey_(req)) }) },
   list: { fn: list_ },
@@ -1324,6 +1383,15 @@ function listTokens_() {
 
 function health_() {
   return { service: 'social-manager', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
+}
+
+/** Followers and the newest posts' numbers on one platform, for platforms whose adapter has stats(). */
+function stats_(req) {
+  const name = String(req.platform || '');
+  const a = adapterFor_(name);
+  if (typeof a.stats !== 'function') throw new ApiError('invalid', `${name} has no stats yet. Platforms with stats: ${Object.keys(platforms_()).filter((k) => platforms_()[k].stats).join(', ')}`);
+  const limit = Math.min(Math.max(Number(req.limit) || 25, 1), 100);
+  return Object.assign({ platform: name }, a.stats(limit));
 }
 
 function platformsInfo_() {
