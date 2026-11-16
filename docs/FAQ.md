@@ -152,7 +152,7 @@ Send `publish` with `"platform": "instagram"`, `video: {"driveFileId": "..."}` a
 Send `publish` with `"platform": "facebook"`, `video` and an optional `description` and `title`. Add `publishAt` to let Facebook schedule it, or `"state": "draft"` to keep it unpublished on the Page. The result has `videoId` and `url`.
 
 ### What video works for Reels?
-MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason.
+MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason. Instagram often answers a whole Reel upload with `ProcessingFailedError` even though the video arrived; the job then waits for Instagram to finish processing and posts only if every byte arrived, otherwise it fails and posts nothing.
 
 ### How do I connect Instagram and Facebook?
 One Meta developer app covers both. The Instagram account must be a professional (business or creator) account linked to the Facebook Page.

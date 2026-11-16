@@ -746,6 +746,8 @@ const IG_STEPS = {
   /**
    * A failed upload leaves the container unusable ("not in the status to upload a video"), so the
    * next try starts again with a fresh container instead of resuming into the old one.
+   * Meta often answers the last chunk of a Reel with ProcessingFailedError although the bytes arrived
+   * and the container goes on to FINISHED; then the process step decides, checking every byte arrived.
    */
   upload(p, s, ctx, c) {
     if (!s.containerId) IG_STEPS.container(p, s, ctx, c);
@@ -753,6 +755,12 @@ const IG_STEPS = {
     try {
       return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
     } catch (err) {
+      if (/ProcessingFailedError/.test(err.message) && s.offset + CHUNK_BYTES >= s.size) {
+        s.offset = s.size;
+        s.uploadDoubt = true;
+        ctx.save();
+        return 'next';
+      }
       delete s.containerId;
       delete s.uploadUrl;
       s.offset = 0;
@@ -763,9 +771,19 @@ const IG_STEPS = {
 
   /** Instagram processes the video before it can be published; this usually takes under a minute. */
   process(p, s, ctx, c) {
+    if (!s.processSince) { s.processSince = Date.now(); ctx.save(); }
     for (;;) {
-      const r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status', access_token: c.token });
-      if (r.status_code === 'FINISHED' || r.status_code === 'PUBLISHED') return 'next';
+      const r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status,video_status', access_token: c.token });
+      if (r.status_code === 'FINISHED' || r.status_code === 'PUBLISHED') {
+        const got = r.video_status && r.video_status.uploading_phase ? Number(r.video_status.uploading_phase.bytes_transferred) : null;
+        if (s.uploadDoubt && got !== s.size) {
+          throw new ApiError('upstream', `Instagram refused the upload (ProcessingFailedError) and has ${got} of ${s.size} bytes, so nothing was posted`);
+        }
+        return 'next';
+      }
+      if (s.uploadDoubt && Date.now() - s.processSince > 15 * 60 * 1000) {
+        throw new ApiError('upstream', 'Instagram refused the upload (ProcessingFailedError) and the video did not finish processing within 15 minutes');
+      }
       if (r.status_code === 'ERROR' || r.status_code === 'EXPIRED') {
         throw new ApiError('upstream', `Instagram could not process the video (${r.status_code}): ${r.status || 'no reason given'}. Reels must be MP4/MOV, 3 s to 15 min, 9:16 works best.`);
       }

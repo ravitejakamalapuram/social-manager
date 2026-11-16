@@ -123,6 +123,8 @@ function fakeMeta(g, u, m, p) {
     if (meta.failNextUpload) { meta.failNextUpload = false; return res(400, {}); }
     if (Number(p.headers.offset) !== up.got.length) return res(400, { error: { code: 100, message: 'bad offset' } });
     up.got.push(...p.payload);
+    // Meta's spurious answer on a whole upload: the bytes arrive, yet it says the request failed.
+    if (meta.processingFailed) return res(400, { debug_info: { retriable: false, type: 'ProcessingFailedError', message: 'Request processing failed' } });
     return res(200, { success: true });
   }
   const q = m === 'get' ? Object.fromEntries(u.searchParams) : Object.fromEntries(new URLSearchParams(p.payload));
@@ -150,7 +152,9 @@ function fakeMeta(g, u, m, p) {
   if (parts[0] === 'ig1' && q.fields === 'followers_count') return res(200, { followers_count: 41 });
   if (parts[0] === 'page1' && q.fields === 'followers_count,fan_count') return res(200, { followers_count: 3 });
   const up = meta.uploads[parts[0]];
-  if (up && up.kind === 'ig') return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.igStatus || 'FINISHED' });
+  if (up && up.kind === 'ig') {
+    return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.igStatus || 'FINISHED', video_status: { uploading_phase: { bytes_transferred: meta.igBytes != null ? meta.igBytes : up.got.length } } });
+  }
   if (up && up.kind === 'fb') return res(200, { status: { video_status: up.polls++ < 1 ? 'processing' : 'ready' }, permalink_url: `/reel/${parts[0]}` });
   if (parts[0].startsWith('m')) return res(200, { permalink: `https://www.instagram.com/reel/${parts[0]}/`, timestamp: '2026-11-15T00:00:00+0000' });
   if (parts[0] === 'ig1') return res(200, { username: 'howto' });
