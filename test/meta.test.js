@@ -136,16 +136,3 @@ test('instagram: a ProcessingFailedError on a complete upload still publishes on
   assert.equal(job.status, 'done', JSON.stringify(job));
   assert.equal(t.google.meta.published.length, 1);
 });
-
-test('instagram: a ProcessingFailedError with missing bytes posts nothing', () => {
-  const t = setup();
-  t.run('CHUNK_BYTES = 16');
-  t.google.meta.processingFailed = true;
-  t.google.meta.igBytes = 4;
-  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } });
-  runAll(t);
-  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
-  assert.equal(job.status, 'failed');
-  assert.match(job.error, /4 of 10 bytes/);
-  assert.equal(t.google.meta.published.length, 0);
-});

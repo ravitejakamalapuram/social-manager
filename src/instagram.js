@@ -69,7 +69,7 @@ const IG_STEPS = {
    * A failed upload leaves the container unusable ("not in the status to upload a video"), so the
    * next try starts again with a fresh container instead of resuming into the old one.
    * Meta often answers the last chunk of a Reel with ProcessingFailedError although the bytes arrived
-   * and the container goes on to FINISHED; then the process step decides, checking every byte arrived.
+   * and the container goes on to FINISHED; then the process step waits for FINISHED (or gives up after 15 min).
    */
   upload(p, s, ctx, c) {
     if (!s.containerId) IG_STEPS.container(p, s, ctx, c);
@@ -97,10 +97,9 @@ const IG_STEPS = {
     for (;;) {
       const r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status,video_status', access_token: c.token });
       if (r.status_code === 'FINISHED' || r.status_code === 'PUBLISHED') {
-        const got = r.video_status && r.video_status.uploading_phase ? Number(r.video_status.uploading_phase.bytes_transferred) : null;
-        if (s.uploadDoubt && got !== s.size) {
-          throw new ApiError('upstream', `Instagram refused the upload (ProcessingFailedError) and has ${got} of ${s.size} bytes, so nothing was posted`);
-        }
+        // After a ProcessingFailedError, FINISHED is Instagram's own word that the video is ready; its
+        // bytes_transferred counter can read 0 by then, so it is only noted, and publish decides.
+        if (s.uploadDoubt) ctx.warn(`Upload answered ProcessingFailedError; Instagram still finished processing (${JSON.stringify(r.video_status || null).slice(0, 200)})`);
         return 'next';
       }
       if (s.uploadDoubt && Date.now() - s.processSince > 15 * 60 * 1000) {
