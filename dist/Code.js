@@ -1263,6 +1263,8 @@ function runJob_(job, started) {
   } catch (err) {
     console.error(err && err.stack ? err.stack : err);
     Object.assign(job, afterError_(job, err, new Date()));
+    // Name the step, so a caller can tell an upload error from a publish error.
+    if (job.error && job.state.step) job.error = `${job.state.step} step: ${job.error}`;
   }
   saveJob_(job);
 }
