@@ -176,12 +176,13 @@ Instagram allows 50 API posts per account per day, and Facebook has no fixed dai
 YouTube gives each API project 10,000 quota units a day. An upload costs about 1,600, and a thumbnail, caption or playlist about 50 to 400 more, so plan on about 5 uploads a day. Editing existing videos is cheap. Quota resets at midnight Pacific time.
 
 ### Why did my upload stay private?
-YouTube locks every video uploaded through an API project that hasn't passed its free compliance audit to private, and those videos can't be made public later, only uploaded again. The result shows a warning when this happens. The fix: move the script to your own Google Cloud project and apply for the audit (see the next question). Until it passes, upload from the YouTube app and use `videoId` to set everything else.
+It shouldn't: an upload with `"privacy": "public"` goes out public. Leave `privacy` out and it defaults to private. Google confirmed in November 2026 that API uploads are not forced private, and a public test from this project's own Cloud project stayed public without an audit. If the result still shows a different privacy than you asked for, it comes with a warning: check the channel in YouTube Studio for a strike or a missing phone verification.
 
 ### Where is the architecture?
 In [ARCHITECTURE.md](ARCHITECTURE.md): one diagram of the parts and one of the sign-in and upload flow.
 
-### How do I apply for the YouTube audit?
+### Do I need the YouTube audit?
+Not for public uploads. Apply only if you need more than the daily quota. The steps:
 1. In [console.cloud.google.com](https://console.cloud.google.com) create a project, enable the **YouTube Data API v3**, **Google Drive API** and **Apps Script API**, and set up the OAuth consent screen (home page, privacy policy, then publish).
 2. In the Apps Script editor, Project Settings → Google Cloud Platform project → Change project, and enter the project number. Run `setup` again to authorize.
 3. Fill in the [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form) for that project. It asks for screenshots of the privacy policy ([PRIVACY.md](../PRIVACY.md)), the terms ([TERMS.md](../TERMS.md)) and the sign-in screen, and a link to this repo as the working upload code. Approval can take a few weeks.
