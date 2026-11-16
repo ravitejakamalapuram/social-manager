@@ -613,18 +613,19 @@ function metaUpload_(url, token, bytes, offset, size) {
     method: 'post', muteHttpExceptions: true, payload: bytes, contentType: 'application/octet-stream',
     headers: { Authorization: `OAuth ${token}`, offset: String(offset), file_size: String(size) },
   });
-  if (r.getResponseCode() !== 200) throw metaError_(r);
+  if (r.getResponseCode() !== 200) throw metaError_(r, true);
   return JSON.parse(r.getContentText() || '{}');
 }
 
-function metaError_(r) {
+/** raw: keep the whole answer in the message (the upload host's short messages hide the useful fields). */
+function metaError_(r, raw) {
   const code = r.getResponseCode();
   const text = String(r.getContentText() || '');
   let e = {};
   // The Graph API puts errors under "error"; the upload host (rupload) uses "debug_info".
   try { const b = JSON.parse(text); e = b.error || b.debug_info || {}; } catch (err) { e = {}; }
   const reason = e.error_user_msg || e.message || '';
-  const message = reason || text.slice(0, 300);
+  const message = raw || !reason ? text.slice(0, 500) : reason;
   let retry = false;
   // 4, 17, 32, 613: rate limits. 2 and is_transient: Meta's own temporary errors. An error with no
   // reason at all (seen right after an Instagram container is made) has passed on the next try.
