@@ -240,9 +240,9 @@ const YT_STEPS = {
     if (!v) throw new ApiError('upstream', `YouTube does not list video ${s.videoId}`, { retry: 'transient' });
     const st = v.status || {};
     if (p.privacy && st.privacyStatus !== p.privacy) {
-      ctx.warn(`Asked for ${p.privacy} but YouTube set ${st.privacyStatus}. If this was an API upload, the API project is probably not audited yet (see the FAQ).`);
+      ctx.warn(`Asked for ${p.privacy} but YouTube set ${st.privacyStatus}. Check the channel in YouTube Studio (see the FAQ).`);
     }
-    if (p.publishAt && !st.publishAt) ctx.warn('Asked for a scheduled time but YouTube did not keep it. See the FAQ about the API audit.');
+    if (p.publishAt && !st.publishAt) ctx.warn('Asked for a scheduled time but YouTube did not keep it. Check the video in YouTube Studio.');
     ctx.result({
       videoId: s.videoId,
       url: `https://youtu.be/${s.videoId}`,

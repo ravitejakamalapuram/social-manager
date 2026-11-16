@@ -122,7 +122,7 @@ test('quota errors wait; extras that fail become warnings, not failures', () => 
   assert.match(job.result.warnings.join(' '), /thumbnail[\s\S]*Nope/);
 });
 
-test('YouTube keeping an upload private (unaudited API project) is reported as a warning', () => {
+test('YouTube keeping an upload private is reported as a warning', () => {
   const { call, admin, google } = setup();
   google.locked = true;
   const id = call('POST', post({ token: admin, privacy: 'public' })).job.id;
@@ -130,7 +130,7 @@ test('YouTube keeping an upload private (unaudited API project) is reported as a
   const job = call('GET', { action: 'get', token: admin, id }).job;
   assert.equal(job.status, 'done');
   assert.equal(job.result.privacy, 'private');
-  assert.match(job.result.warnings[0], /audited/);
+  assert.match(job.result.warnings[0], /YouTube Studio/);
 });
 
 test('edit: privacy and schedule on an existing video, keeping its other fields', () => {
