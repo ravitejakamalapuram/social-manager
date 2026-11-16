@@ -13,6 +13,7 @@ const ROUTES = {
   health: { auth: false, fn: health_ },
   platforms: { fn: platformsInfo_ },
   channel: { fn: (req) => adapterFor_(req.platform || 'youtube').whoami() },
+  stats: { fn: (req) => stats_(req) },
   publish: { write: true, fn: publish_ },
   get: { fn: (req) => ({ job: presentJob_(jobByIdOrKey_(req)) }) },
   list: { fn: list_ },
@@ -112,6 +113,15 @@ function listTokens_() {
 
 function health_() {
   return { service: 'social-manager', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
+}
+
+/** Followers and the newest posts' numbers on one platform, for platforms whose adapter has stats(). */
+function stats_(req) {
+  const name = String(req.platform || '');
+  const a = adapterFor_(name);
+  if (typeof a.stats !== 'function') throw new ApiError('invalid', `${name} has no stats yet. Platforms with stats: ${Object.keys(platforms_()).filter((k) => platforms_()[k].stats).join(', ')}`);
+  const limit = Math.min(Math.max(Number(req.limit) || 25, 1), 100);
+  return Object.assign({ platform: name }, a.stats(limit));
 }
 
 function platformsInfo_() {

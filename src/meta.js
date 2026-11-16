@@ -12,6 +12,8 @@ const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 const META_SCOPES = [
   'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', 'business_management',
   'instagram_basic', 'instagram_content_publish',
+  // Views and reach of posts, for the stats action. Accounts connected before these were added get null views until connectMeta() is run again.
+  'instagram_manage_insights', 'read_insights',
 ];
 
 /** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
@@ -121,3 +123,24 @@ function metaFileSize_(p, s) {
   if (!s.size) throw new ApiError('invalid', 'The video file in Drive is empty');
   s.offset = 0;
 }
+
+/**
+ * Calls fn for each post until one fails, then gives null for the rest: a missing insights permission
+ * fails every call the same way, so one failure is enough to stop asking.
+ */
+function metaInsightsEach_(posts, fn) {
+  let ok = true;
+  return posts.map((p) => {
+    if (!ok) return null;
+    try { return fn(p); } catch (e) { ok = false; console.log(`Meta insights: ${e.message}`); return null; }
+  });
+}
+
+/** The value of one metric in an insights answer, or null. */
+function metaMetric_(r, name) {
+  const m = (r.data || []).find((x) => x.name === name);
+  const v = m && m.values && m.values[0] ? m.values[0].value : m && m.total_value ? m.total_value.value : null;
+  return v == null ? null : Number(v);
+}
+
+const firstLine_ = (s) => String(s || '').split('\n')[0].slice(0, 100);

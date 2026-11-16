@@ -30,6 +30,21 @@ const Instagram = {
     return IG_STEPS[step](job.post, job.state, ctx, metaConfig_(true));
   },
 
+  /** Followers and the newest posts with likes, comments, views and reach (views need instagram_manage_insights). */
+  stats(limit) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'followers_count', access_token: c.token });
+    const media = metaGet_(`/${c.igId}/media`, { fields: 'id,permalink,caption,timestamp,like_count,comments_count', limit, access_token: c.token }).data || [];
+    const ins = metaInsightsEach_(media, (m) => metaGet_(`/${m.id}/insights`, { metric: 'views,reach', access_token: c.token }));
+    return {
+      followers: me.followers_count == null ? null : me.followers_count,
+      posts: media.map((m, i) => ({
+        url: m.permalink, title: firstLine_(m.caption), at: m.timestamp, likes: m.like_count == null ? null : m.like_count,
+        comments: m.comments_count == null ? null : m.comments_count, views: ins[i] && metaMetric_(ins[i], 'views'), reach: ins[i] && metaMetric_(ins[i], 'reach'),
+      })),
+    };
+  },
+
   whoami() {
     const c = metaConfig_(true);
     const r = metaGet_(`/${c.igId}`, { fields: 'username,name', access_token: c.token });

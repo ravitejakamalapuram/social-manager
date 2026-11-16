@@ -104,3 +104,24 @@ test('instagram: an upload error with no reason is retried, not failed', () => {
   assert.equal(done.status, 'done', JSON.stringify(done));
   assert.deepEqual(t.google.meta.uploads.c2.got, t.google.files.vid.bytes);
 });
+
+test('stats: followers and per-post numbers for instagram and facebook', () => {
+  const t = setup();
+  const ig = t.call('GET', { action: 'stats', token: t.admin, platform: 'instagram' });
+  assert.equal(ig.ok, true, JSON.stringify(ig));
+  assert.equal(ig.followers, 41);
+  assert.deepEqual(ig.posts[0], { url: 'https://www.instagram.com/reel/m7/', title: 'Why Hubble is falling', at: '2026-11-15T00:00:00+0000', likes: 40, comments: 3, views: 812, reach: 700 });
+  const fb = t.call('GET', { action: 'stats', token: t.admin, platform: 'facebook' });
+  assert.equal(fb.followers, 3);
+  assert.deepEqual(fb.posts[0], { url: 'https://www.facebook.com/reel/v1', title: 'Mangroves', at: '2026-11-15T00:00:00+0000', likes: 9, comments: 1, views: 150, reach: null });
+  assert.equal(t.call('GET', { action: 'stats', token: t.admin, platform: 'youtube' }).error.code, 'invalid');
+});
+
+test('stats: without the insights permission, views are null and likes still come back', () => {
+  const t = setup();
+  t.google.meta.noInsights = true;
+  const ig = t.call('GET', { action: 'stats', token: t.admin, platform: 'instagram' });
+  assert.equal(ig.ok, true, JSON.stringify(ig));
+  assert.equal(ig.posts[0].views, null);
+  assert.equal(ig.posts[1].likes, 1);
+});
