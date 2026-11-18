@@ -136,3 +136,91 @@ test('instagram: a ProcessingFailedError on a complete upload still publishes on
   assert.equal(job.status, 'done', JSON.stringify(job));
   assert.equal(t.google.meta.published.length, 1);
 });
+
+test('instagram: with a video link, Instagram fetches the file and nothing is uploaded', () => {
+  const t = setup();
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { url: 'https://example.com/a.mp4', driveFileId: 'vid' }, caption: 'Tides' });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  const c = t.google.meta.uploads.c1;
+  assert.equal(c.params.video_url, 'https://example.com/a.mp4');
+  assert.equal(c.params.upload_type, undefined);
+  assert.deepEqual(c.got, []);
+  assert.equal(t.google.meta.published.length, 1);
+});
+
+test('instagram: a link Instagram cannot fetch falls back to uploading the Drive file', () => {
+  const t = setup();
+  t.google.meta.urlStatus = 'ERROR';
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { url: 'https://example.com/a.mp4', driveFileId: 'vid' } });
+  runAll(t);
+  const waiting = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(waiting.status, 'queued', JSON.stringify(waiting));
+  assert.match(waiting.error, /Will retry: Instagram could not take the video from its link \(ERROR\): Error: Media upload has failed with error code 2207052/);
+  t.sheet.rows[1][t.sheet.rows[0].indexOf('notBefore')] = ''; // pretend the wait is over
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.equal(t.google.meta.uploads.c2.params.upload_type, 'resumable');
+  assert.deepEqual(t.google.meta.uploads.c2.got, t.google.files.vid.bytes);
+  assert.equal(t.google.meta.published.length, 1);
+  assert.match(job.result.warnings[0], /could not take the video from its link/);
+});
+
+test('instagram: a link with no Drive file fails with Instagram\'s reason', () => {
+  const t = setup();
+  t.google.meta.urlStatus = 'ERROR';
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { url: 'https://example.com/a.mp4' } });
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'failed');
+  assert.match(job.error, /could not process the video \(ERROR\): Error: Media upload has failed with error code 2207052/);
+  assert.equal(t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { url: 'http://example.com/a.mp4' } }).error.code, 'invalid');
+});
+
+test('instagram: a refused upload that never finishes starts again with a new container', () => {
+  const t = setup();
+  t.run('CHUNK_BYTES = 16; IG_DOUBT_MS = -1');
+  t.google.meta.processingFailed = true;
+  t.google.meta.igStatus = 'IN_PROGRESS';
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } });
+  t.call('POST', { action: 'run', token: t.admin });
+  const waiting = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(waiting.status, 'queued', JSON.stringify(waiting));
+  assert.match(waiting.error, /Will retry: Instagram refused the upload \(ProcessingFailedError\) and did not finish/);
+  // The next try makes a new container and uploads again; this time Instagram takes it.
+  Object.assign(t.google.meta, { processingFailed: false, igStatus: null });
+  t.sheet.rows[1][t.sheet.rows[0].indexOf('notBefore')] = '';
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(t.google.meta.uploads.c2.got, t.google.files.vid.bytes);
+  assert.equal(t.google.meta.published[0].container, 'c2');
+});
+
+test('instagram: a container Meta has deleted starts the job again', () => {
+  const t = setup();
+  t.google.meta.gone = ['c1'];
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } });
+  t.call('POST', { action: 'run', token: t.admin });
+  assert.match(t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job.error, /Will retry: Instagram dropped the container/);
+  t.sheet.rows[1][t.sheet.rows[0].indexOf('notBefore')] = '';
+  runAll(t);
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job.status, 'done');
+});
+
+test('worker: a job waiting on Instagram lets the jobs behind it run first', () => {
+  const t = setup();
+  t.run('IG_POLL_MS = -1; WAIT_MS = 60000; WORK_BUDGET_MS = 1000');
+  t.google.meta.igStatus = 'IN_PROGRESS';
+  const ig = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } });
+  const fb = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides' });
+  t.call('POST', { action: 'run', token: t.admin });
+  t.call('POST', { action: 'run', token: t.admin });
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: fb.job.id }).job.status, 'done');
+  const waiting = t.call('GET', { action: 'get', token: t.admin, id: ig.job.id }).job;
+  assert.equal(waiting.status, 'queued');
+  assert.ok(waiting.notBefore);
+});

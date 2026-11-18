@@ -1,7 +1,11 @@
 /**
  * The worker: a time trigger runs runQueue every 5 minutes and works through queued jobs one at a time.
  * Long uploads stop before Apps Script's time limit and carry on in the next run.
+ * A step that is only waiting on its platform answers 'wait': the job steps aside for WAIT_MS, so the
+ * jobs behind it are not held up, and the same run comes back to it when it has time left.
  */
+
+let WAIT_MS = 15 * 1000;
 
 function runQueue() {
   return runQueue_();
@@ -17,13 +21,20 @@ function runQueue_() {
   });
   if (!claimed) return { ran: [], note: 'Another worker run is busy' };
   const started = Date.now();
-  const ran = [];
+  let ran = [];
   try {
     do {
-      const job = pickNextJob_(allJobs_(), new Date());
-      if (!job) break;
+      const jobs = allJobs_();
+      const job = pickNextJob_(jobs, new Date());
+      if (!job) {
+        // Nothing to do now. If a queued job is due again within this run's time, wait for it.
+        const due = jobs.filter((j) => j.status === 'queued' && j.notBefore).map((j) => new Date(j.notBefore).getTime()).sort((a, b) => a - b)[0];
+        if (!due || due - started >= WORK_BUDGET_MS) break;
+        Utilities.sleep(Math.max(due - Date.now(), 0) + 20);
+        continue;
+      }
       const paused = runJob_(job, started) === 'paused';
-      ran.push(presentJob_(job));
+      ran = ran.filter((j) => j.id !== job.id).concat(presentJob_(job));
       if (paused) break; // out of time mid-upload; the next run carries on
     } while (Date.now() - started < WORK_BUDGET_MS);
   } finally {
@@ -55,10 +66,12 @@ function runJob_(job, started) {
   try {
     for (let i = job.state.stepIndex || 0; i < steps.length; i++) {
       job.state.step = steps[i];
-      if (adapter.run(steps[i], job, ctx) === 'pause') {
+      const answer = adapter.run(steps[i], job, ctx);
+      if (answer === 'pause' || answer === 'wait') {
         job.status = 'queued';
+        if (answer === 'wait') job.notBefore = new Date(Date.now() + WAIT_MS).toISOString();
         saveJob_(job);
-        return 'paused';
+        return answer === 'wait' ? 'waiting' : 'paused';
       }
       job.state.stepIndex = i + 1;
       saveJob_(job);
