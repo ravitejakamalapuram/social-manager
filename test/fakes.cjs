@@ -153,6 +153,8 @@ function fakeMeta(g, u, m, p) {
   if (parts[0] === 'page1' && q.fields === 'followers_count,fan_count') return res(200, { followers_count: 3 });
   const up = meta.uploads[parts[0]];
   if (up && up.kind === 'ig') {
+    if (meta.gone && meta.gone.includes(parts[0])) return res(400, { error: { code: 100, error_subcode: 33, message: `Unsupported get request. Object with ID '${parts[0]}' does not exist` } });
+    if (up.params.video_url) return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.urlStatus || 'FINISHED', status: meta.urlStatus === 'ERROR' ? 'Error: Media upload has failed with error code 2207052' : undefined });
     return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.igStatus || 'FINISHED', video_status: { uploading_phase: { bytes_transferred: meta.igBytes != null ? meta.igBytes : up.got.length } } });
   }
   if (up && up.kind === 'fb') return res(200, { status: { video_status: up.polls++ < 1 ? 'processing' : 'ready' }, permalink_url: `/reel/${parts[0]}` });
@@ -184,6 +186,7 @@ function load() {
   for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
+  vm.runInContext('WAIT_MS = 0', ctx); // a waiting job is due again at once, so tests don't sit out the wait
   const sheet = fakeSheet(vm.runInContext('JOB_COLS', ctx));
   ctx.SpreadsheetApp = { openById: () => ({ getSheetByName: () => sheet }) };
   store.SHEET_ID = 'fake';

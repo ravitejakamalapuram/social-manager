@@ -146,13 +146,21 @@ LinkedIn sign-ins last 60 days and LinkedIn gives small apps no way to renew the
 ## Posting to Instagram and Facebook
 
 ### How do I post a Reel to Instagram?
-Send `publish` with `"platform": "instagram"`, `video: {"driveFileId": "..."}` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverAtMs` picks the cover frame (milliseconds into the video), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
+Send `publish` with `"platform": "instagram"`, `video` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverAtMs` picks the cover frame (milliseconds into the video), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
+
+### Which way should I give Instagram the video?
+Best is a public link: `video: {"url": "https://...", "driveFileId": "..."}`. Instagram then fetches the file itself. The link must be a direct https link to the MP4 that anyone can open, and it must stay up until the job is done. The Drive file is the fallback: if Instagram can't fetch the link, the job uploads the Drive file instead and says so in a warning. You can send only `url`, or only `driveFileId`.
+
+With only `driveFileId` the job uploads the file to Meta's upload host. That host refuses about two in three whole Reel uploads with `ProcessingFailedError` (seen November 2026, with any encoding), so this way is slow and often fails.
 
 ### How do I post a Reel to a Facebook Page?
 Send `publish` with `"platform": "facebook"`, `video` and an optional `description` and `title`. Add `publishAt` to let Facebook schedule it, or `"state": "draft"` to keep it unpublished on the Page. The result has `videoId` and `url`.
 
 ### What video works for Reels?
-MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason. Instagram often answers a whole Reel upload with `ProcessingFailedError` even though the video arrived; the job then waits up to 15 minutes for Instagram to finish processing, posts if it does (with a warning on the job), and otherwise fails and posts nothing.
+MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason. 
+
+### What happens when an Instagram upload fails?
+When Meta's upload host answers `ProcessingFailedError`, the job waits up to 10 minutes: a few of those videos still finish processing, and then the job posts (with a warning). If not, the job starts again with a new container after 5 minutes. It tries 3 times, then fails and posts nothing. `retry` on a failed job starts from a new container too. While a job waits on Instagram, the jobs behind it carry on.
 
 ### How do I connect Instagram and Facebook?
 One Meta developer app covers both. The Instagram account must be a professional (business or creator) account linked to the Facebook Page.
