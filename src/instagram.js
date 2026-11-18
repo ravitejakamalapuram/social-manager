@@ -140,10 +140,11 @@ const IG_STEPS = {
     for (;;) {
       let r;
       try {
-        r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status,video_status', access_token: c.token });
+        // video_status exists only on an uploaded container; asking a linked one for it is an error (100/2207065).
+        r = metaGet_(`/${s.containerId}`, { fields: s.byUrl ? 'status_code,status' : 'status_code,status,video_status', access_token: c.token });
       } catch (err) {
-        // Meta deletes a container whose upload never arrived; asking for it then answers code 100.
-        if (!err.details || err.details.reason !== 100) throw err;
+        // Meta deletes a container whose upload never arrived; asking for it then answers code 100, subcode 33.
+        if (!err.details || err.details.reason !== 100 || err.details.subcode !== 33) throw err;
         igStartOver_(s, ctx);
         throw new ApiError('upstream', `Instagram dropped the container before the video arrived; starting again (${err.message})`, { retry: 'transient' });
       }

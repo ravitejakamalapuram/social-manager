@@ -154,6 +154,7 @@ function fakeMeta(g, u, m, p) {
   const up = meta.uploads[parts[0]];
   if (up && up.kind === 'ig') {
     if (meta.gone && meta.gone.includes(parts[0])) return res(400, { error: { code: 100, error_subcode: 33, message: `Unsupported get request. Object with ID '${parts[0]}' does not exist` } });
+    if (up.params.video_url && /video_status/.test(q.fields)) return res(400, { error: { code: 100, error_subcode: 2207065, message: 'video_status is not a valid parameter for the media type' } });
     if (up.params.video_url) return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.urlStatus || 'FINISHED', status: meta.urlStatus === 'ERROR' ? 'Error: Media upload has failed with error code 2207052' : undefined });
     return res(200, { status_code: up.polls++ < 1 ? 'IN_PROGRESS' : meta.igStatus || 'FINISHED', video_status: { uploading_phase: { bytes_transferred: meta.igBytes != null ? meta.igBytes : up.got.length } } });
   }

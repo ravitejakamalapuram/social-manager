@@ -2,7 +2,7 @@
  * Shared pieces with no Google services in them: errors, ids, input checks and the platform list.
  */
 
-const API_VERSION = '1.1.0';
+const API_VERSION = '1.1.1';
 const NAME_RE = /^[a-z0-9-]{1,40}$/;
 const JOB_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'];
 const MAX_ATTEMPTS = 3;
