@@ -102,7 +102,7 @@ function metaError_(r, raw) {
   // reason at all (seen right after an Instagram container is made) has passed on the next try.
   if ([4, 17, 32, 613].includes(e.code)) retry = 'quota';
   else if (code >= 500 || e.is_transient || e.retriable || e.code === 2 || (!reason && !e.code)) retry = 'transient';
-  return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, retry });
+  return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, subcode: e.error_subcode || null, retry });
 }
 
 /** Uploads a Drive file to a rupload URL in CHUNK_BYTES parts, recording progress in s.offset. */

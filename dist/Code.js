@@ -5,7 +5,7 @@
  * Shared pieces with no Google services in them: errors, ids, input checks and the platform list.
  */
 
-const API_VERSION = '1.1.0';
+const API_VERSION = '1.1.1';
 const NAME_RE = /^[a-z0-9-]{1,40}$/;
 const JOB_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'];
 const MAX_ATTEMPTS = 3;
@@ -631,7 +631,7 @@ function metaError_(r, raw) {
   // reason at all (seen right after an Instagram container is made) has passed on the next try.
   if ([4, 17, 32, 613].includes(e.code)) retry = 'quota';
   else if (code >= 500 || e.is_transient || e.retriable || e.code === 2 || (!reason && !e.code)) retry = 'transient';
-  return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, retry });
+  return new ApiError('upstream', `Meta answered ${code}${e.code ? ` (code ${e.code}${e.error_subcode ? `/${e.error_subcode}` : ''})` : ''}: ${message}`, { status: code, reason: e.code || null, subcode: e.error_subcode || null, retry });
 }
 
 /** Uploads a Drive file to a rupload URL in CHUNK_BYTES parts, recording progress in s.offset. */
@@ -818,10 +818,11 @@ const IG_STEPS = {
     for (;;) {
       let r;
       try {
-        r = metaGet_(`/${s.containerId}`, { fields: 'status_code,status,video_status', access_token: c.token });
+        // video_status exists only on an uploaded container; asking a linked one for it is an error (100/2207065).
+        r = metaGet_(`/${s.containerId}`, { fields: s.byUrl ? 'status_code,status' : 'status_code,status,video_status', access_token: c.token });
       } catch (err) {
-        // Meta deletes a container whose upload never arrived; asking for it then answers code 100.
-        if (!err.details || err.details.reason !== 100) throw err;
+        // Meta deletes a container whose upload never arrived; asking for it then answers code 100, subcode 33.
+        if (!err.details || err.details.reason !== 100 || err.details.subcode !== 33) throw err;
         igStartOver_(s, ctx);
         throw new ApiError('upstream', `Instagram dropped the container before the video arrived; starting again (${err.message})`, { retry: 'transient' });
       }
