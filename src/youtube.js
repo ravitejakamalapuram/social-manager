@@ -88,7 +88,42 @@ const YouTube = {
     if (!c) throw new ApiError('not_found', 'This Google account has no YouTube channel');
     return { id: c.id, title: c.snippet.title, url: `https://www.youtube.com/channel/${c.id}` };
   },
+
+  /** Newest top-level comments on the channel's videos, minus the channel's own, with whether the channel replied. */
+  comments(limit) {
+    const me = YouTube.whoami().id;
+    const r = googleJson_('get', `${YT}/commentThreads?part=snippet,replies&allThreadsRelatedToChannelId=${me}&order=time&maxResults=${limit}&textFormat=plainText`);
+    const items = (r.items || []).filter((t) => ytAuthor_(t.snippet.topLevelComment) !== me);
+    const ids = [...new Set(items.map((t) => t.snippet.videoId))];
+    const titles = {};
+    if (ids.length) (googleJson_('get', `${YT}/videos?part=snippet&id=${ids.join(',')}`).items || []).forEach((v) => { titles[v.id] = v.snippet.title; });
+    return {
+      comments: items.map((t) => {
+        const c = t.snippet.topLevelComment.snippet;
+        return {
+          id: t.id, author: c.authorDisplayName, text: c.textDisplay, at: c.publishedAt, likes: c.likeCount,
+          videoId: t.snippet.videoId, videoTitle: titles[t.snippet.videoId] || '',
+          url: `https://www.youtube.com/watch?v=${t.snippet.videoId}&lc=${t.id}`,
+          replies: t.snippet.totalReplyCount,
+          replied: ((t.replies && t.replies.comments) || []).some((x) => ytAuthor_(x) === me),
+        };
+      }),
+    };
+  },
+
+  /** Replies to a top-level comment. Sending the same text again returns the first reply instead of posting twice. */
+  reply(commentId, text) {
+    const me = YouTube.whoami().id;
+    const mine = (googleJson_('get', `${YT}/comments?part=snippet&parentId=${encodeURIComponent(commentId)}&maxResults=100&textFormat=plainText`).items || [])
+      .find((x) => ytAuthor_(x) === me && x.snippet.textOriginal === text);
+    const c = mine || googleJson_('post', `${YT}/comments?part=snippet`, { json: { snippet: { parentId: commentId, textOriginal: text } } });
+    return { reply: { id: c.id, commentId, text: c.snippet.textOriginal, existing: !!mine } };
+  },
 };
+
+function ytAuthor_(c) {
+  return c && c.snippet && c.snippet.authorChannelId && c.snippet.authorChannelId.value;
+}
 
 function ytSnippet_(p, base) {
   const s = {};

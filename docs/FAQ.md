@@ -172,6 +172,11 @@ The script keeps a Page token that doesn't expire. `channel` with `platform` `in
 ### How do I read followers, likes and views?
 `{"action":"stats","platform":"instagram"}` (or `facebook`) with any token, optional `limit` (newest posts, default 25, up to 100). It returns `followers` and `posts`, each with `url`, `title`, `at`, `likes`, `comments`, `views` and `reach`. Views and reach need the `instagram_manage_insights` and `read_insights` permissions; an account connected before they were added gets `null` there until `connectMeta` is run again. Only Instagram and Facebook have stats so far.
 
+### How do I read and reply to comments?
+`{"action":"comments","platform":"youtube"}` with any token, optional `limit` (newest threads, default 20, up to 100). It returns `comments`, each with `id`, `author`, `text`, `at`, `videoId`, `videoTitle`, `url`, `replies` and `replied` (true once the channel has answered it). The channel's own comments are left out.
+
+To answer one, POST `{"action":"reply","platform":"youtube","commentId":"<id>","text":"..."}`. Sending the same text to the same comment again returns the first reply (`"existing": true`) instead of posting twice, so a retry is safe. Only YouTube has comments so far; it uses the `youtube.force-ssl` permission the channel already granted.
+
 ### Does the Meta app need App Review?
 No, as long as it only posts to Pages and Instagram accounts of people who have a role on the app (you, as its admin). App Review is only needed to post for other people's accounts.
 

@@ -85,6 +85,14 @@ function fakeGoogle() {
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
     if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
+    if (u.pathname === '/youtube/v3/commentThreads') return res(200, { items: g.threads || [] });
+    if (u.pathname === '/youtube/v3/comments' && m === 'get') return res(200, { items: g.ytReplies || [] });
+    if (u.pathname === '/youtube/v3/comments') {
+      const sn = JSON.parse(p.payload).snippet;
+      const c = { id: `r${(g.ytReplies || []).length + 1}`, snippet: { parentId: sn.parentId, textOriginal: sn.textOriginal, authorChannelId: { value: 'UC1' } } };
+      (g.ytReplies = g.ytReplies || []).push(c);
+      return res(200, c);
+    }
     if (u.pathname === '/youtube/v3/channels') return res(200, { items: [{ id: 'UC1', snippet: { title: 'My channel' } }] });
     return err(500, `unhandled ${m} ${url}`);
   };
