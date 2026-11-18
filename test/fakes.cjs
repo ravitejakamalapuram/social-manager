@@ -153,6 +153,15 @@ function fakeMeta(g, u, m, p) {
     return res(200, { video_id: id, upload_url: `https://rupload.facebook.com/video-upload/v24.0/${id}` });
   }
   if (parts[1] === 'video_reels' && q.upload_phase === 'finish') { meta.uploads[q.video_id].finish = q; return res(200, { success: true }); }
+  if (parts[1] === 'comments' || parts[1] === 'replies') {
+    meta.comments = meta.comments || {};
+    const list = meta.comments[parts[0]] || [];
+    if (m === 'get') return res(200, { data: list });
+    const r = parts[1] === 'replies' ? { id: `r${list.length + 1}`, text: q.message, username: 'howto' } : { id: `r${list.length + 1}`, message: q.message, from: { id: 'page1' } };
+    meta.comments[parts[0]] = list.concat([r]);
+    (meta.replies = meta.replies || []).push({ to: parts[0], text: q.message });
+    return res(200, { id: r.id });
+  }
   if (parts[0] === 'ig1' && parts[1] === 'media') return res(200, { data: [{ id: 'm7', permalink: 'https://www.instagram.com/reel/m7/', caption: 'Why Hubble is falling\n#space', timestamp: '2026-11-15T00:00:00+0000', like_count: 40, comments_count: 3 }, { id: 'm8', permalink: 'p8', caption: 'B', like_count: 1, comments_count: 0 }] });
   if (parts[1] === 'insights') return meta.noInsights ? res(400, { error: { code: 10, message: 'needs instagram_manage_insights' } }) : res(200, { data: [{ name: 'views', values: [{ value: 812 }] }, { name: 'reach', values: [{ value: 700 }] }] });
   if (parts[0] === 'page1' && parts[1] === 'video_reels') return res(200, { data: [{ id: 'v1', permalink_url: '/reel/v1', description: 'Mangroves', created_time: '2026-11-15T00:00:00+0000', likes: { summary: { total_count: 9 } }, comments: { summary: { total_count: 1 } } }] });

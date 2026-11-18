@@ -44,6 +44,39 @@ const Instagram = {
     };
   },
 
+  /** Newest comments on the newest Reels, minus the account's own, with whether the account replied (needs instagram_manage_comments). */
+  comments(limit) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'username', access_token: c.token }).username;
+    const media = (metaGet_(`/${c.igId}/media`, { fields: 'id,permalink,caption,comments_count', limit: 25, access_token: c.token }).data || [])
+      .filter((m) => m.comments_count);
+    const out = [];
+    media.forEach((m) => {
+      const list = metaGet_(`/${m.id}/comments`, { fields: 'id,text,username,timestamp,like_count,replies{username,text}', limit: 50, access_token: c.token }).data || [];
+      list.filter((x) => x.username !== me).forEach((x) => {
+        const replies = (x.replies && x.replies.data) || [];
+        out.push({
+          id: x.id, author: x.username, text: x.text, at: x.timestamp, likes: x.like_count == null ? 0 : x.like_count,
+          videoId: m.id, videoTitle: firstLine_(m.caption), url: m.permalink, replies: replies.length,
+          replied: replies.some((r) => r.username === me),
+        });
+      });
+    });
+    out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return { comments: out.slice(0, limit) };
+  },
+
+  /** Replies to a comment. Sending the same text again returns the first reply instead of posting twice. */
+  reply(commentId, text) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'username', access_token: c.token }).username;
+    const id = encodeURIComponent(commentId);
+    const mine = (metaGet_(`/${id}/replies`, { fields: 'id,text,username', limit: 100, access_token: c.token }).data || [])
+      .find((x) => x.username === me && x.text === text);
+    const r = mine || metaPost_(`/${id}/replies`, { message: text, access_token: c.token });
+    return { reply: { id: r.id, commentId, text, existing: !!mine } };
+  },
+
   whoami() {
     const c = metaConfig_(true);
     const r = metaGet_(`/${c.igId}`, { fields: 'username,name', access_token: c.token });

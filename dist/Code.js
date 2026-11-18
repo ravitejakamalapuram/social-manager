@@ -578,6 +578,8 @@ const META_SCOPES = [
   'instagram_basic', 'instagram_content_publish',
   // Views and reach of posts, for the stats action. Accounts connected before these were added get null views until connectMeta() is run again.
   'instagram_manage_insights', 'read_insights',
+  // Reading and answering comments, for the comments and reply actions. Also needs connectMeta() run again.
+  'instagram_manage_comments', 'pages_read_user_content', 'pages_manage_engagement',
 ];
 
 /** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
@@ -755,6 +757,39 @@ const Instagram = {
         comments: m.comments_count == null ? null : m.comments_count, views: ins[i] && metaMetric_(ins[i], 'views'), reach: ins[i] && metaMetric_(ins[i], 'reach'),
       })),
     };
+  },
+
+  /** Newest comments on the newest Reels, minus the account's own, with whether the account replied (needs instagram_manage_comments). */
+  comments(limit) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'username', access_token: c.token }).username;
+    const media = (metaGet_(`/${c.igId}/media`, { fields: 'id,permalink,caption,comments_count', limit: 25, access_token: c.token }).data || [])
+      .filter((m) => m.comments_count);
+    const out = [];
+    media.forEach((m) => {
+      const list = metaGet_(`/${m.id}/comments`, { fields: 'id,text,username,timestamp,like_count,replies{username,text}', limit: 50, access_token: c.token }).data || [];
+      list.filter((x) => x.username !== me).forEach((x) => {
+        const replies = (x.replies && x.replies.data) || [];
+        out.push({
+          id: x.id, author: x.username, text: x.text, at: x.timestamp, likes: x.like_count == null ? 0 : x.like_count,
+          videoId: m.id, videoTitle: firstLine_(m.caption), url: m.permalink, replies: replies.length,
+          replied: replies.some((r) => r.username === me),
+        });
+      });
+    });
+    out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return { comments: out.slice(0, limit) };
+  },
+
+  /** Replies to a comment. Sending the same text again returns the first reply instead of posting twice. */
+  reply(commentId, text) {
+    const c = metaConfig_(true);
+    const me = metaGet_(`/${c.igId}`, { fields: 'username', access_token: c.token }).username;
+    const id = encodeURIComponent(commentId);
+    const mine = (metaGet_(`/${id}/replies`, { fields: 'id,text,username', limit: 100, access_token: c.token }).data || [])
+      .find((x) => x.username === me && x.text === text);
+    const r = mine || metaPost_(`/${id}/replies`, { message: text, access_token: c.token });
+    return { reply: { id: r.id, commentId, text, existing: !!mine } };
   },
 
   whoami() {
@@ -954,6 +989,41 @@ const Facebook = {
         views: ins[i] && metaMetric_(ins[i], 'blue_reels_play_count'), reach: ins[i] && metaMetric_(ins[i], 'post_impressions_unique'),
       })),
     };
+  },
+
+  /** Newest comments on the Page's newest Reels, minus the Page's own, with whether the Page replied (needs pages_read_user_content). */
+  comments(limit) {
+    const c = metaConfig_(false);
+    const reels = (metaGet_(`/${c.pageId}/video_reels`, {
+      fields: 'id,permalink_url,description,comments.summary(true).limit(0)', limit: 25, access_token: c.token,
+    }).data || []).filter((v) => v.comments && v.comments.summary && v.comments.summary.total_count);
+    const out = [];
+    reels.forEach((v) => {
+      const list = metaGet_(`/${v.id}/comments`, {
+        fields: 'id,message,from,created_time,like_count,comments{from,message}', filter: 'toplevel', order: 'reverse_chronological', limit: 50, access_token: c.token,
+      }).data || [];
+      list.filter((x) => !(x.from && x.from.id === c.pageId)).forEach((x) => {
+        const replies = (x.comments && x.comments.data) || [];
+        out.push({
+          id: x.id, author: (x.from && x.from.name) || 'Facebook user', text: x.message, at: x.created_time, likes: x.like_count == null ? 0 : x.like_count,
+          videoId: v.id, videoTitle: firstLine_(v.description),
+          url: /^https?:/.test(v.permalink_url || '') ? v.permalink_url : `https://www.facebook.com${v.permalink_url || `/reel/${v.id}`}`,
+          replies: replies.length, replied: replies.some((r) => r.from && r.from.id === c.pageId),
+        });
+      });
+    });
+    out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return { comments: out.slice(0, limit) };
+  },
+
+  /** Replies to a comment as the Page. Sending the same text again returns the first reply instead of posting twice. */
+  reply(commentId, text) {
+    const c = metaConfig_(false);
+    const id = encodeURIComponent(commentId);
+    const mine = (metaGet_(`/${id}/comments`, { fields: 'id,message,from', limit: 100, access_token: c.token }).data || [])
+      .find((x) => x.from && x.from.id === c.pageId && x.message === text);
+    const r = mine || metaPost_(`/${id}/comments`, { message: text, access_token: c.token });
+    return { reply: { id: r.id, commentId, text, existing: !!mine } };
   },
 
   whoami() {
