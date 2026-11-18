@@ -50,6 +50,41 @@ const Facebook = {
     };
   },
 
+  /** Newest comments on the Page's newest Reels, minus the Page's own, with whether the Page replied (needs pages_read_user_content). */
+  comments(limit) {
+    const c = metaConfig_(false);
+    const reels = (metaGet_(`/${c.pageId}/video_reels`, {
+      fields: 'id,permalink_url,description,comments.summary(true).limit(0)', limit: 25, access_token: c.token,
+    }).data || []).filter((v) => v.comments && v.comments.summary && v.comments.summary.total_count);
+    const out = [];
+    reels.forEach((v) => {
+      const list = metaGet_(`/${v.id}/comments`, {
+        fields: 'id,message,from,created_time,like_count,comments{from,message}', filter: 'toplevel', order: 'reverse_chronological', limit: 50, access_token: c.token,
+      }).data || [];
+      list.filter((x) => !(x.from && x.from.id === c.pageId)).forEach((x) => {
+        const replies = (x.comments && x.comments.data) || [];
+        out.push({
+          id: x.id, author: (x.from && x.from.name) || 'Facebook user', text: x.message, at: x.created_time, likes: x.like_count == null ? 0 : x.like_count,
+          videoId: v.id, videoTitle: firstLine_(v.description),
+          url: /^https?:/.test(v.permalink_url || '') ? v.permalink_url : `https://www.facebook.com${v.permalink_url || `/reel/${v.id}`}`,
+          replies: replies.length, replied: replies.some((r) => r.from && r.from.id === c.pageId),
+        });
+      });
+    });
+    out.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    return { comments: out.slice(0, limit) };
+  },
+
+  /** Replies to a comment as the Page. Sending the same text again returns the first reply instead of posting twice. */
+  reply(commentId, text) {
+    const c = metaConfig_(false);
+    const id = encodeURIComponent(commentId);
+    const mine = (metaGet_(`/${id}/comments`, { fields: 'id,message,from', limit: 100, access_token: c.token }).data || [])
+      .find((x) => x.from && x.from.id === c.pageId && x.message === text);
+    const r = mine || metaPost_(`/${id}/comments`, { message: text, access_token: c.token });
+    return { reply: { id: r.id, commentId, text, existing: !!mine } };
+  },
+
   whoami() {
     const c = metaConfig_(false);
     const r = metaGet_(`/${c.pageId}`, { fields: 'name,link', access_token: c.token });

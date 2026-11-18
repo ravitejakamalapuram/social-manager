@@ -14,6 +14,8 @@ const META_SCOPES = [
   'instagram_basic', 'instagram_content_publish',
   // Views and reach of posts, for the stats action. Accounts connected before these were added get null views until connectMeta() is run again.
   'instagram_manage_insights', 'read_insights',
+  // Reading and answering comments, for the comments and reply actions. Also needs connectMeta() run again.
+  'instagram_manage_comments', 'pages_read_user_content', 'pages_manage_engagement',
 ];
 
 /** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
