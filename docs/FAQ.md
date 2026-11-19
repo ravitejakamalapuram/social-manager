@@ -146,7 +146,7 @@ LinkedIn sign-ins last 60 days and LinkedIn gives small apps no way to renew the
 ## Posting to Instagram and Facebook
 
 ### How do I post a Reel to Instagram?
-Send `publish` with `"platform": "instagram"`, `video` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverAtMs` picks the cover frame (milliseconds into the video), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
+Send `publish` with `"platform": "instagram"`, `video` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverUrl` is a public https link to a JPG used as the Reel's cover (the grid and Reels tab show it; it must stay up until the job is done), or `coverAtMs` picks a frame of the video instead (Instagram ignores it when `coverUrl` is sent), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
 
 ### Which way should I give Instagram the video?
 Best is a public link: `video: {"url": "https://...", "driveFileId": "..."}`. Instagram then fetches the file itself. The link must be a direct https link to the MP4 that anyone can open, and it must stay up until the job is done. The Drive file is the fallback: if Instagram can't fetch the link, the job uploads the Drive file instead and says so in a warning. You can send only `url`, or only `driveFileId`.

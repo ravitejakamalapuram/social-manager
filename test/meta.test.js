@@ -30,6 +30,17 @@ test('instagram: container, chunked upload, waits for processing, publishes once
   assert.equal(t.google.meta.published.length, 1);
 });
 
+test('instagram: coverUrl goes to Instagram as cover_url; a non-https cover is refused', () => {
+  const t = setup();
+  const bad = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, coverUrl: 'http://x/c.jpg' });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error.message, /coverUrl/);
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, coverUrl: 'https://x.example/c.jpg' });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  assert.equal(t.google.meta.uploads.c1.params.cover_url, 'https://x.example/c.jpg');
+});
+
 test('instagram: a processing error fails the job with the reason', () => {
   const t = setup();
   t.google.meta.igStatus = 'ERROR';
