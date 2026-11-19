@@ -13,9 +13,13 @@ const Instagram = {
     if (caption && (caption.match(/#/g) || []).length > 30) throw new ApiError('invalid', 'Instagram allows at most 30 hashtags');
     const coverMs = p.coverAtMs === undefined || p.coverAtMs === null ? null : Number(p.coverAtMs);
     if (coverMs !== null && !(coverMs >= 0)) throw new ApiError('invalid', 'coverAtMs must be a number of milliseconds into the video');
+    const coverUrl = p.coverUrl === undefined || p.coverUrl === null ? null : p.coverUrl;
+    if (coverUrl !== null && (typeof coverUrl !== 'string' || coverUrl.length > 2000 || !/^https:\/\/[^\s]+$/.test(coverUrl))) {
+      throw new ApiError('invalid', 'coverUrl must be a public https link to a JPG');
+    }
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
     return {
-      video, caption, coverAtMs: coverMs, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
+      video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
       title: optText_(p.title, 'title', 100) || (caption || '').split('\n')[0].slice(0, 100),
       notBefore: publishAt,
     };
@@ -123,7 +127,7 @@ const IG_STEPS = {
     const byUrl = !!p.video.url && !s.urlFailed;
     const r = metaPost_(`/${c.igId}/media`, Object.assign({
       media_type: 'REELS', caption: p.caption, share_to_feed: String(p.shareToFeed), thumb_offset: p.coverAtMs, access_token: c.token,
-    }, byUrl ? { video_url: p.video.url } : { upload_type: 'resumable' }));
+    }, p.coverUrl ? { cover_url: p.coverUrl } : {}, byUrl ? { video_url: p.video.url } : { upload_type: 'resumable' }));
     s.containerId = r.id;
     s.byUrl = byUrl;
     s.uploadUrl = byUrl ? null : r.uri || `https://rupload.facebook.com/ig-api-upload/${GRAPH_VERSION}/${r.id}`;
