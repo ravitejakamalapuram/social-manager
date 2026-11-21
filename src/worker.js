@@ -45,6 +45,7 @@ function runQueue_() {
 
 function runJob_(job, started) {
   const adapter = adapterFor_(job.platform);
+  YT_ACCOUNT = (job.platform === 'youtube' && job.post && job.post.account) || ''; // each job works as its own channel
   const steps = adapter.steps(job.post);
   job.status = 'running';
   job.notBefore = null;
