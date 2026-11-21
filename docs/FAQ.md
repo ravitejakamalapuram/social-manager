@@ -212,6 +212,7 @@ From then on every YouTube call uses that channel. Run `connectYouTube` again to
 ### Can it post to more than one YouTube channel?
 Yes. The first channel is the main one. Each extra channel is an "account" with a short name of your choice, like `anaadi`.
 1. POST `{"action":"connectYouTube","token":"<admin token>","account":"anaadi"}`. It returns a `url`, valid for 10 minutes.
+   Without an admin token: in the editor, add the Script Property `YT_CONNECT_ACCOUNT` with the name, run `connectYouTubeAccount` and take the link from the log.
 2. Open the link in a browser signed in to the Google account that owns the script, pick that channel and press Allow.
 3. Add `"account":"anaadi"` to any YouTube call: `publish`, `channel`, `stats`, `comments`, `reply`.
 Leave `account` out and the call uses the main channel, as before. A publish to an account that is not connected fails at once with `not_connected`. All accounts share the project's daily YouTube quota.
