@@ -256,8 +256,15 @@ const YT_STEPS = {
     todo.forEach((want) => {
       ctx.optional(`playlist ${want}`, () => {
         if (!mine) mine = ytMyPlaylists_();
-        const hit = mine.find((pl) => pl.id === want) || mine.find((pl) => pl.title === want);
-        if (!hit) throw new ApiError('not_found', `No playlist with id or title "${want}" on this channel`);
+        let hit = mine.find((pl) => pl.id === want) || mine.find((pl) => pl.title === want);
+        if (!hit && /^PL[\w-]{10,}$/.test(want)) throw new ApiError('not_found', `No playlist with id "${want}" on this channel`);
+        if (!hit) { // a title the channel doesn't have yet: make it as a public playlist
+          const made = googleJson_('post', `${YT}/playlists?part=snippet,status`, {
+            json: { snippet: { title: want }, status: { privacyStatus: 'public' } },
+          });
+          hit = { id: made.id, title: want };
+          mine.push(hit);
+        }
         googleJson_('post', `${YT}/playlistItems?part=snippet`, {
           json: { snippet: { playlistId: hit.id, resourceId: { kind: 'youtube#video', videoId: s.videoId } } },
         });

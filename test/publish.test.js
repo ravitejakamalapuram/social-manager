@@ -108,7 +108,7 @@ test('quota errors wait; extras that fail become warnings, not failures', () => 
   const { call, admin, google, sheet } = setup();
   google.fail['post /upload/youtube/v3/videos'] = { times: 1, code: 403, reason: 'quotaExceeded' };
   google.fail['thumbnails'] = { times: 1, code: 403, reason: 'forbidden' };
-  const id = call('POST', post({ token: admin, thumbnail: { driveFileId: 'img' }, playlists: ['Nope'] })).job.id;
+  const id = call('POST', post({ token: admin, thumbnail: { driveFileId: 'img' }, playlists: ['PLnope12345678'] })).job.id;
   call('POST', { action: 'run', token: admin });
   let job = call('GET', { action: 'get', token: admin, id }).job;
   assert.equal(job.status, 'queued');
@@ -119,7 +119,17 @@ test('quota errors wait; extras that fail become warnings, not failures', () => 
   job = call('GET', { action: 'get', token: admin, id }).job;
   assert.equal(job.status, 'done');
   assert.equal(job.result.warnings.length, 2);
-  assert.match(job.result.warnings.join(' '), /thumbnail[\s\S]*Nope/);
+  assert.match(job.result.warnings.join(' '), /thumbnail[\s\S]*PLnope/);
+});
+
+test('a playlist title the channel does not have yet is made', () => {
+  const { call, admin, google } = setup();
+  const id = call('POST', post({ token: admin, playlists: ['Season 1'] })).job.id;
+  call('POST', { action: 'run', token: admin });
+  const job = call('GET', { action: 'get', token: admin, id }).job;
+  assert.equal(job.status, 'done');
+  assert.equal(google.playlists.at(-1).snippet.title, 'Season 1');
+  assert.equal(google.playlistItems.at(-1).playlistId, google.playlists.at(-1).id);
 });
 
 test('YouTube keeping an upload private is reported as a warning', () => {
