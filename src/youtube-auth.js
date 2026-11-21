@@ -48,6 +48,16 @@ function connectYouTube(account) {
   return url;
 }
 
+/**
+ * The same from the editor, which can't pass a name: put the account name in the Script Property
+ * YT_CONNECT_ACCOUNT, run this, and open the link it logs.
+ */
+function connectYouTubeAccount() {
+  const name = props_().getProperty('YT_CONNECT_ACCOUNT');
+  if (!name) throw new Error('Add the script property YT_CONNECT_ACCOUNT with the account name first, like "anaadi".');
+  return connectYouTube(name);
+}
+
 function youTubeCallback(req) {
   const p = props_();
   const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
