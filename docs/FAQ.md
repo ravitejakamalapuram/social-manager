@@ -102,7 +102,7 @@ Only `platform`, `video` and `title` are required. The answer is `{"ok": true, "
 - `aiGenerated`: YouTube's "altered or synthetic content" label. Left out, YouTube's default applies.
 - `thumbnail`: a JPG or PNG in Drive, at most 2 MB. The channel must be phone-verified for custom thumbnails.
 - `captions`: SRT files in Drive, one per language.
-- `playlists`: playlist ids, or exact playlist titles on the channel.
+- `playlists`: playlist ids, or exact playlist titles. A title the channel doesn't have yet is made as a new public playlist.
 
 Limits: title 100 characters, description 5,000, tags 500 in total. Titles and descriptions can't contain `<` or `>`.
 

@@ -81,6 +81,11 @@ function fakeGoogle() {
     }
     if (u.pathname === '/upload/youtube/v3/thumbnails/set') { g.thumbnails[u.searchParams.get('videoId')] = p.payload; return res(200, {}); }
     if (u.pathname === '/upload/youtube/v3/captions') { g.captions.push(Buffer.from(p.payload).toString('utf8')); return res(200, {}); }
+    if (u.pathname === '/youtube/v3/playlists' && m === 'post') {
+      const pl = { id: `PLnew${g.playlists.length}`, snippet: JSON.parse(p.payload).snippet };
+      g.playlists.push(pl);
+      return res(200, pl);
+    }
     if (u.pathname === '/youtube/v3/playlists') return res(200, { items: g.playlists });
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
