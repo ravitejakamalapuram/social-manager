@@ -6,17 +6,39 @@
  * https://script.google.com/macros/d/<script id>/usercallback): YT_CLIENT_ID and YT_CLIENT_SECRET.
  * Then run connectYouTube() in the editor and open the link it logs. Without them, the script's own
  * sign-in is used.
+ *
+ * More than one channel: each extra channel is an "account" with a short name ("anaadi"). Its sign-in is
+ * kept beside the main one, and a call that sends "account" uses it. The main channel needs no name.
  */
+
+/** The account the current API call or job works as; '' is the main channel. */
+let YT_ACCOUNT = '';
+
+function ytAccountName_(v) {
+  if (v === undefined || v === null || v === '') return '';
+  if (typeof v !== 'string' || !/^[a-z0-9-]{1,30}$/.test(v)) throw new ApiError('invalid', 'account must be a short name of small letters, digits or dashes, like "anaadi"');
+  return v;
+}
+
+function ytKey_(k, account) {
+  const a = account === undefined ? YT_ACCOUNT : account;
+  return a ? `${k}_${a.toUpperCase().replace(/-/g, '_')}` : k;
+}
+
+function ytAccountConnected_(account) {
+  return !account || !!props_().getProperty(ytKey_('YT_REFRESH_TOKEN', account));
+}
 
 const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl'];
 
-/** Logs the sign-in link. Open it, pick the channel, press Allow. */
-function connectYouTube() {
+/** Logs the sign-in link. Open it, pick the channel, press Allow. With a name, it connects that extra account. */
+function connectYouTube(account) {
+  const name = ytAccountName_(typeof account === 'string' ? account : '');
   const p = props_();
   if (!p.getProperty('YT_CLIENT_ID') || !p.getProperty('YT_CLIENT_SECRET')) {
     throw new Error('Add the YT_CLIENT_ID and YT_CLIENT_SECRET script properties first (see the FAQ).');
   }
-  const state = ScriptApp.newStateToken().withMethod('youTubeCallback').withTimeout(600).createToken();
+  const state = ScriptApp.newStateToken().withMethod('youTubeCallback').withArgument('account', name).withTimeout(600).createToken();
   const q = {
     client_id: p.getProperty('YT_CLIENT_ID'), redirect_uri: ytRedirectUri_(), response_type: 'code',
     scope: YT_SCOPES.join(' '), access_type: 'offline', prompt: 'consent select_account', state,
@@ -37,11 +59,12 @@ function youTubeCallback(req) {
   });
   const t = JSON.parse(r.getContentText());
   if (!t.refresh_token) return HtmlService.createHtmlOutput(`Sign-in failed: ${String(t.error_description || t.error || r.getResponseCode())}`);
-  p.setProperty('YT_REFRESH_TOKEN', t.refresh_token);
-  CacheService.getScriptCache().put('YT_ACCESS', t.access_token, 3000);
+  YT_ACCOUNT = ytAccountName_((req.parameter && req.parameter.account) || '');
+  p.setProperty(ytKey_('YT_REFRESH_TOKEN'), t.refresh_token);
+  CacheService.getScriptCache().put(ytKey_('YT_ACCESS'), t.access_token, 3000);
   let who = '';
   try { who = YouTube.whoami().title; } catch (err) { who = `(could not read the channel: ${err.message})`; }
-  return HtmlService.createHtmlOutput(`Connected. Social Manager now posts to the YouTube channel: ${who}. You can close this tab.`);
+  return HtmlService.createHtmlOutput(`Connected${YT_ACCOUNT ? ` as the account "${YT_ACCOUNT}"` : ''}. Social Manager now posts to the YouTube channel: ${who}. You can close this tab.`);
 }
 
 function ytRedirectUri_() {
@@ -51,10 +74,11 @@ function ytRedirectUri_() {
 /** Access token for YouTube calls: the channel sign-in if there is one, else the script's own. */
 function youTubeToken_() {
   const p = props_();
-  const refresh = p.getProperty('YT_REFRESH_TOKEN');
+  const refresh = p.getProperty(ytKey_('YT_REFRESH_TOKEN'));
+  if (!refresh && YT_ACCOUNT) throw new ApiError('not_connected', `The YouTube account "${YT_ACCOUNT}" is not connected; call connectYouTube with that account first`, { retry: false });
   if (!refresh) return ScriptApp.getOAuthToken();
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('YT_ACCESS');
+  const hit = cache.get(ytKey_('YT_ACCESS'));
   if (hit) return hit;
   const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
     method: 'post', muteHttpExceptions: true,
@@ -62,6 +86,6 @@ function youTubeToken_() {
   });
   const t = JSON.parse(r.getContentText());
   if (!t.access_token) throw new ApiError('upstream', `YouTube sign-in failed (${t.error || r.getResponseCode()}); run connectYouTube() again`, { status: r.getResponseCode(), retry: false });
-  cache.put('YT_ACCESS', t.access_token, Math.min(Number(t.expires_in || 3600) - 300, 3000));
+  cache.put(ytKey_('YT_ACCESS'), t.access_token, Math.min(Number(t.expires_in || 3600) - 300, 3000));
   return t.access_token;
 }

@@ -162,3 +162,14 @@ test('retry, cancel and list', () => {
   assert.equal(call('GET', { action: 'list', token: admin, status: 'cancelled' }).jobs.length, 1);
   assert.equal(call('GET', { action: 'list', token: admin }).jobs.length, 2);
 });
+
+test('a second YouTube channel is an account with its own sign-in', () => {
+  const { call, admin, run } = setup();
+  const p = (extra) => call('POST', post(Object.assign({ token: admin }, extra)));
+  assert.match(p({ account: 'Bad Name' }).error.message, /short name/);
+  assert.equal(p({ account: 'anaadi' }).error.code, 'not_connected');
+  run("props_().setProperty('YT_REFRESH_TOKEN_ANAADI', 'r')");
+  const job = p({ account: 'anaadi' }).job;
+  assert.equal(job.status, 'queued');
+  assert.equal(p({}).job.status, 'queued'); // the main channel still needs no account
+});
