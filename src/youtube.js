@@ -89,6 +89,26 @@ const YouTube = {
     return { id: c.id, title: c.snippet.title, url: `https://www.youtube.com/channel/${c.id}` };
   },
 
+  /** Subscribers, total channel views and the newest uploads with views, likes and comments. YouTube has no reach, so that is null. */
+  stats(limit) {
+    const c = (googleJson_('get', `${YT}/channels?part=statistics,contentDetails&mine=true`).items || [])[0];
+    if (!c) throw new ApiError('not_found', 'This Google account has no YouTube channel');
+    const st = c.statistics || {};
+    const num = (v) => (v == null ? null : Number(v));
+    const ids = (googleJson_('get', `${YT}/playlistItems?part=contentDetails&playlistId=${c.contentDetails.relatedPlaylists.uploads}&maxResults=${Math.min(limit, 50)}`).items || [])
+      .map((i) => i.contentDetails.videoId);
+    const videos = ids.length ? googleJson_('get', `${YT}/videos?part=snippet,statistics&id=${ids.join(',')}`).items || [] : [];
+    return {
+      followers: st.hiddenSubscriberCount ? null : num(st.subscriberCount),
+      channelViews: num(st.viewCount),
+      posts: videos.map((v) => ({
+        url: `https://youtu.be/${v.id}`, title: v.snippet.title, at: v.snippet.publishedAt,
+        likes: num(v.statistics && v.statistics.likeCount), comments: num(v.statistics && v.statistics.commentCount),
+        views: num(v.statistics && v.statistics.viewCount), reach: null,
+      })),
+    };
+  },
+
   /** Newest top-level comments on the channel's videos, minus the channel's own, with whether the channel replied. */
   comments(limit) {
     const me = YouTube.whoami().id;

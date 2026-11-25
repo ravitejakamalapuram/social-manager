@@ -71,8 +71,8 @@ function fakeGoogle() {
       return res(201, { id });
     }
     if (u.pathname === '/youtube/v3/videos' && m === 'get') {
-      const v = g.videos[u.searchParams.get('id')];
-      return res(200, { items: v ? [{ id: v.id, snippet: v.snippet, status: v.status }] : [] });
+      const items = u.searchParams.get('id').split(',').map((id) => g.videos[id]).filter(Boolean);
+      return res(200, { items: items.map((v) => ({ id: v.id, snippet: v.snippet, status: v.status, statistics: v.statistics })) });
     }
     if (u.pathname === '/youtube/v3/videos' && m === 'put') {
       const body = JSON.parse(p.payload);
@@ -87,6 +87,7 @@ function fakeGoogle() {
       return res(200, pl);
     }
     if (u.pathname === '/youtube/v3/playlists') return res(200, { items: g.playlists });
+    if (u.pathname === '/youtube/v3/playlistItems' && m === 'get') return res(200, { items: Object.keys(g.videos).map((id) => ({ contentDetails: { videoId: id } })) });
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
     if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
@@ -98,7 +99,7 @@ function fakeGoogle() {
       (g.ytReplies = g.ytReplies || []).push(c);
       return res(200, c);
     }
-    if (u.pathname === '/youtube/v3/channels') return res(200, { items: [{ id: 'UC1', snippet: { title: 'My channel' } }] });
+    if (u.pathname === '/youtube/v3/channels') return res(200, { items: [{ id: 'UC1', snippet: { title: 'My channel' }, statistics: { subscriberCount: '120', viewCount: '5000' }, contentDetails: { relatedPlaylists: { uploads: 'UU1' } } }] });
     return err(500, `unhandled ${m} ${url}`);
   };
   return g;
