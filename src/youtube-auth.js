@@ -7,7 +7,7 @@
  * Then run connectYouTube() in the editor and open the link it logs. Without them, the script's own
  * sign-in is used.
  *
- * More than one channel: each extra channel is an "account" with a short name ("anaadi"). Its sign-in is
+ * More than one channel: each extra channel is an "account" with a short name ("second"). Its sign-in is
  * kept beside the main one, and a call that sends "account" uses it. The main channel needs no name.
  */
 
@@ -16,7 +16,7 @@ let YT_ACCOUNT = '';
 
 function ytAccountName_(v) {
   if (v === undefined || v === null || v === '') return '';
-  if (typeof v !== 'string' || !/^[a-z0-9-]{1,30}$/.test(v)) throw new ApiError('invalid', 'account must be a short name of small letters, digits or dashes, like "anaadi"');
+  if (typeof v !== 'string' || !/^[a-z0-9-]{1,30}$/.test(v)) throw new ApiError('invalid', 'account must be a short name of small letters, digits or dashes, like "second"');
   return v;
 }
 
@@ -54,7 +54,7 @@ function connectYouTube(account) {
  */
 function connectYouTubeAccount() {
   const name = props_().getProperty('YT_CONNECT_ACCOUNT');
-  if (!name) throw new Error('Add the script property YT_CONNECT_ACCOUNT with the account name first, like "anaadi".');
+  if (!name) throw new Error('Add the script property YT_CONNECT_ACCOUNT with the account name first, like "second".');
   return connectYouTube(name);
 }
 
