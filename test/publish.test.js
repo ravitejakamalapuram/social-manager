@@ -37,6 +37,8 @@ test('validation explains what is wrong', () => {
   assert.match(bad({ publishAt: future(), privacy: 'public' }), /must be private/);
   assert.match(bad({ publishAt: '2020-01-01T00:00:00Z' }), /future/);
   assert.match(bad({ tags: Array(60).fill('long tag here') }), /limit is 500/);
+  assert.match(bad({ description: 'అ'.repeat(1700) }), /5100 bytes; the limit is 5000 bytes/); // 1,700 letters, 3 bytes each
+  assert.equal(call('POST', post({ token: admin, description: 'అ'.repeat(1666) })).ok, true);
   assert.match(bad({ captions: [{ driveFileId: 'srt' }] }), /language is required/);
 });
 
@@ -182,4 +184,11 @@ test('a second YouTube channel is an account with its own sign-in', () => {
   const job = p({ account: 'second' }).job;
   assert.equal(job.status, 'queued');
   assert.equal(p({}).job.status, 'queued'); // the main channel still needs no account
+});
+
+test('platforms lists each platform with its limits', () => {
+  const { call, admin } = setup();
+  const r = call('GET', { action: 'platforms', token: admin });
+  assert.deepEqual(r.limits.youtube, { title: 100, descriptionBytes: 5000, tagsTotal: 500 });
+  assert.equal(r.limits.instagram.hashtags, 5);
 });

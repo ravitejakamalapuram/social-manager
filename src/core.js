@@ -40,6 +40,16 @@ function optText_(v, field, max) {
   return v;
 }
 
+/** UTF-8 length of a string, the unit YouTube counts descriptions in. */
+function utf8Bytes_(s) {
+  let n = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  }
+  return n;
+}
+
 function optBool_(v, field) {
   if (v === undefined || v === null) return null;
   if (typeof v !== 'boolean') throw new ApiError('invalid', `${field} must be true or false`);

@@ -6,11 +6,16 @@
 
 const Instagram = {
   name: 'instagram',
+  /** Caption in characters; hashtags cut from 30 to 5 per post in December 2025. */
+  limits: { caption: 2200, hashtags: 5, title: 100 },
 
   validate(p, now) {
     const video = igVideo_(p.video);
-    const caption = optText_(p.caption, 'caption', 2200);
-    if (caption && (caption.match(/#/g) || []).length > 30) throw new ApiError('invalid', 'Instagram allows at most 30 hashtags');
+    const caption = optText_(p.caption, 'caption', Instagram.limits.caption);
+    const tags = (caption || '').match(/#[^\s#]+/g) || [];
+    if (tags.length > Instagram.limits.hashtags) {
+      throw new ApiError('invalid', `caption has ${tags.length} hashtags; Instagram allows at most ${Instagram.limits.hashtags} since December 2025`);
+    }
     const coverMs = p.coverAtMs === undefined || p.coverAtMs === null ? null : Number(p.coverAtMs);
     if (coverMs !== null && !(coverMs >= 0)) throw new ApiError('invalid', 'coverAtMs must be a number of milliseconds into the video');
     const coverUrl = p.coverUrl === undefined || p.coverUrl === null ? null : p.coverUrl;
@@ -20,7 +25,7 @@ const Instagram = {
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
     return {
       video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
-      title: optText_(p.title, 'title', 100) || (caption || '').split('\n')[0].slice(0, 100),
+      title: optText_(p.title, 'title', Instagram.limits.title) || (caption || '').split('\n')[0].slice(0, Instagram.limits.title),
       notBefore: publishAt,
     };
   },
