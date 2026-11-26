@@ -11,12 +11,19 @@ function deployLatest() {
 
 function deployLatest_(force) {
   const p = props_();
-  const repo = p.getProperty('SOURCE_REPO') || 'ravitejakamalapuram/social-media-publisher';
+  // The repo was called social-manager before November 2026; the old name is tried if the new one is not found.
+  const repos = p.getProperty('SOURCE_REPO') ? [p.getProperty('SOURCE_REPO')]
+    : ['ravitejakamalapuram/social-media-publisher', 'ravitejakamalapuram/social-manager'];
   const branch = p.getProperty('SOURCE_BRANCH') || 'main';
   const raw = (path) => {
-    const r = UrlFetchApp.fetch(`https://raw.githubusercontent.com/${repo}/${branch}/${path}`, { muteHttpExceptions: true });
-    if (r.getResponseCode() !== 200) throw new ApiError('upstream', `GitHub answered ${r.getResponseCode()} for ${path}`);
-    return r.getContentText();
+    let code = 0;
+    for (const repo of repos) {
+      const r = UrlFetchApp.fetch(`https://raw.githubusercontent.com/${repo}/${branch}/${path}`, { muteHttpExceptions: true });
+      code = r.getResponseCode();
+      if (code === 200) return r.getContentText();
+      if (code !== 404) break;
+    }
+    throw new ApiError('upstream', `GitHub answered ${code} for ${path}`);
   };
   const code = raw('dist/Code.js');
   const manifest = raw('src/appsscript.json');
