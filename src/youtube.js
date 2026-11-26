@@ -7,6 +7,7 @@
 const YT = 'https://www.googleapis.com/youtube/v3';
 const YT_UPLOAD = 'https://www.googleapis.com/upload/youtube/v3';
 const YT_PRIVACY = ['private', 'unlisted', 'public'];
+const YT_ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 
 const YouTube = {
   name: 'youtube',
@@ -68,7 +69,15 @@ const YouTube = {
       playlists = p.playlists;
     }
 
+    const firstComment = optText_(p.firstComment, 'firstComment', 2000);
+    if (firstComment && privacy === 'private') {
+      throw new ApiError('invalid', publishAt
+        ? 'firstComment cannot go on a scheduled video: it is private until publishAt, and YouTube takes no comments on a private video'
+        : 'firstComment needs "privacy": "public" or "unlisted": YouTube takes no comments on a private video');
+    }
+
     return {
+      firstComment,
       video, videoId, title, description, tags, categoryId: categoryId || (video ? '22' : null),
       language: optText_(p.language, 'language', 20),
       madeForKids: video ? optBool_(p.madeForKids, 'madeForKids') === true : optBool_(p.madeForKids, 'madeForKids'),
@@ -80,7 +89,7 @@ const YouTube = {
   },
 
   steps(post) {
-    return [post.video ? 'upload' : 'edit', 'thumbnail', 'captions', 'playlists', 'check'];
+    return [post.video ? 'upload' : 'edit', 'thumbnail', 'captions', 'playlists', 'check'].concat(post.firstComment ? ['comment'] : []);
   },
 
   run(step, job, ctx) {
@@ -95,7 +104,11 @@ const YouTube = {
     return { id: c.id, title: c.snippet.title, url: `https://www.youtube.com/channel/${c.id}` };
   },
 
-  /** Subscribers, total channel views and the newest uploads with views, likes and comments. YouTube has no reach, so that is null. */
+  /**
+   * Subscribers, total channel views and the newest uploads with views, likes and comments. YouTube has no reach,
+   * so that is null. engagedViews (views that kept playing, the ones the Partner Programme counts) comes from
+   * YouTube Analytics and is null for an account connected without the analytics permission.
+   */
   stats(limit) {
     const c = (googleJson_('get', `${YT}/channels?part=statistics,contentDetails&mine=true`).items || [])[0];
     if (!c) throw new ApiError('not_found', 'This Google account has no YouTube channel');
@@ -104,6 +117,7 @@ const YouTube = {
     const ids = (googleJson_('get', `${YT}/playlistItems?part=contentDetails&playlistId=${c.contentDetails.relatedPlaylists.uploads}&maxResults=${Math.min(limit, 50)}`).items || [])
       .map((i) => i.contentDetails.videoId);
     const videos = ids.length ? googleJson_('get', `${YT}/videos?part=snippet,statistics&id=${ids.join(',')}`).items || [] : [];
+    const engaged = ids.length ? ytEngagedViews_(ids) : {};
     return {
       followers: st.hiddenSubscriberCount ? null : num(st.subscriberCount),
       channelViews: num(st.viewCount),
@@ -111,6 +125,7 @@ const YouTube = {
         url: `https://youtu.be/${v.id}`, title: v.snippet.title, at: v.snippet.publishedAt,
         likes: num(v.statistics && v.statistics.likeCount), comments: num(v.statistics && v.statistics.commentCount),
         views: num(v.statistics && v.statistics.viewCount), reach: null,
+        engagedViews: engaged[v.id] == null ? null : engaged[v.id],
       })),
     };
   },
@@ -301,6 +316,19 @@ const YT_STEPS = {
     return 'next';
   },
 
+  /** The channel's own first comment under a new public video. YouTube has no API to pin it; that stays a manual step. */
+  comment(p, s, ctx) {
+    if (!p.firstComment || s.commentDone) return 'next';
+    ctx.afterPublish('first comment', () => {
+      googleJson_('post', `${YT}/commentThreads?part=snippet`, {
+        json: { snippet: { videoId: s.videoId, topLevelComment: { snippet: { textOriginal: p.firstComment } } } },
+      });
+    });
+    s.commentDone = true;
+    ctx.save();
+    return 'next';
+  },
+
   /** Reads the video back, so the result shows what YouTube actually did. */
   check(p, s, ctx) {
     const r = googleJson_('get', `${YT}/videos?part=status,snippet&id=${encodeURIComponent(s.videoId)}`);
@@ -323,6 +351,24 @@ const YT_STEPS = {
     return 'next';
   },
 };
+
+/**
+ * {video id: engaged views} for these videos of the channel (at most 200), from YouTube Analytics ("top videos" report).
+ * Empty when the account was connected before the analytics permission was asked for, when the YouTube Analytics
+ * API is off in the Google Cloud project, or on any other refusal: stats must still return the public numbers.
+ */
+function ytEngagedViews_(ids) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const r = googleJson_('get', `${YT_ANALYTICS}?ids=channel%3D%3DMINE&startDate=2005-01-01&endDate=${today}&metrics=engagedViews&dimensions=video&filters=video%3D%3D${ids.join(',')}&sort=-engagedViews&maxResults=200`);
+    const out = {};
+    (r.rows || []).forEach((row) => { out[row[0]] = Number(row[1]); });
+    return out;
+  } catch (e) {
+    console.log(`YouTube Analytics: ${e.message}`);
+    return {};
+  }
+}
 
 function ytMyPlaylists_() {
   const out = [];

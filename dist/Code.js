@@ -130,7 +130,7 @@ function google_(method, url, opts) {
   const params = {
     method,
     muteHttpExceptions: true,
-    headers: Object.assign({ Authorization: `Bearer ${url.includes('/youtube/') ? youTubeToken_() : ScriptApp.getOAuthToken()}` }, o.headers || {}),
+    headers: Object.assign({ Authorization: `Bearer ${/\/youtube\/|youtubeanalytics\./.test(url) ? youTubeToken_() : ScriptApp.getOAuthToken()}` }, o.headers || {}),
   };
   if (o.json !== undefined) {
     params.contentType = 'application/json; charset=UTF-8';
@@ -207,6 +207,7 @@ function driveBytes_(id) {
 const YT = 'https://www.googleapis.com/youtube/v3';
 const YT_UPLOAD = 'https://www.googleapis.com/upload/youtube/v3';
 const YT_PRIVACY = ['private', 'unlisted', 'public'];
+const YT_ANALYTICS = 'https://youtubeanalytics.googleapis.com/v2/reports';
 
 const YouTube = {
   name: 'youtube',
@@ -268,7 +269,15 @@ const YouTube = {
       playlists = p.playlists;
     }
 
+    const firstComment = optText_(p.firstComment, 'firstComment', 2000);
+    if (firstComment && privacy === 'private') {
+      throw new ApiError('invalid', publishAt
+        ? 'firstComment cannot go on a scheduled video: it is private until publishAt, and YouTube takes no comments on a private video'
+        : 'firstComment needs "privacy": "public" or "unlisted": YouTube takes no comments on a private video');
+    }
+
     return {
+      firstComment,
       video, videoId, title, description, tags, categoryId: categoryId || (video ? '22' : null),
       language: optText_(p.language, 'language', 20),
       madeForKids: video ? optBool_(p.madeForKids, 'madeForKids') === true : optBool_(p.madeForKids, 'madeForKids'),
@@ -280,7 +289,7 @@ const YouTube = {
   },
 
   steps(post) {
-    return [post.video ? 'upload' : 'edit', 'thumbnail', 'captions', 'playlists', 'check'];
+    return [post.video ? 'upload' : 'edit', 'thumbnail', 'captions', 'playlists', 'check'].concat(post.firstComment ? ['comment'] : []);
   },
 
   run(step, job, ctx) {
@@ -295,7 +304,11 @@ const YouTube = {
     return { id: c.id, title: c.snippet.title, url: `https://www.youtube.com/channel/${c.id}` };
   },
 
-  /** Subscribers, total channel views and the newest uploads with views, likes and comments. YouTube has no reach, so that is null. */
+  /**
+   * Subscribers, total channel views and the newest uploads with views, likes and comments. YouTube has no reach,
+   * so that is null. engagedViews (views that kept playing, the ones the Partner Programme counts) comes from
+   * YouTube Analytics and is null for an account connected without the analytics permission.
+   */
   stats(limit) {
     const c = (googleJson_('get', `${YT}/channels?part=statistics,contentDetails&mine=true`).items || [])[0];
     if (!c) throw new ApiError('not_found', 'This Google account has no YouTube channel');
@@ -304,6 +317,7 @@ const YouTube = {
     const ids = (googleJson_('get', `${YT}/playlistItems?part=contentDetails&playlistId=${c.contentDetails.relatedPlaylists.uploads}&maxResults=${Math.min(limit, 50)}`).items || [])
       .map((i) => i.contentDetails.videoId);
     const videos = ids.length ? googleJson_('get', `${YT}/videos?part=snippet,statistics&id=${ids.join(',')}`).items || [] : [];
+    const engaged = ids.length ? ytEngagedViews_(ids) : {};
     return {
       followers: st.hiddenSubscriberCount ? null : num(st.subscriberCount),
       channelViews: num(st.viewCount),
@@ -311,6 +325,7 @@ const YouTube = {
         url: `https://youtu.be/${v.id}`, title: v.snippet.title, at: v.snippet.publishedAt,
         likes: num(v.statistics && v.statistics.likeCount), comments: num(v.statistics && v.statistics.commentCount),
         views: num(v.statistics && v.statistics.viewCount), reach: null,
+        engagedViews: engaged[v.id] == null ? null : engaged[v.id],
       })),
     };
   },
@@ -501,6 +516,19 @@ const YT_STEPS = {
     return 'next';
   },
 
+  /** The channel's own first comment under a new public video. YouTube has no API to pin it; that stays a manual step. */
+  comment(p, s, ctx) {
+    if (!p.firstComment || s.commentDone) return 'next';
+    ctx.afterPublish('first comment', () => {
+      googleJson_('post', `${YT}/commentThreads?part=snippet`, {
+        json: { snippet: { videoId: s.videoId, topLevelComment: { snippet: { textOriginal: p.firstComment } } } },
+      });
+    });
+    s.commentDone = true;
+    ctx.save();
+    return 'next';
+  },
+
   /** Reads the video back, so the result shows what YouTube actually did. */
   check(p, s, ctx) {
     const r = googleJson_('get', `${YT}/videos?part=status,snippet&id=${encodeURIComponent(s.videoId)}`);
@@ -523,6 +551,24 @@ const YT_STEPS = {
     return 'next';
   },
 };
+
+/**
+ * {video id: engaged views} for these videos of the channel (at most 200), from YouTube Analytics ("top videos" report).
+ * Empty when the account was connected before the analytics permission was asked for, when the YouTube Analytics
+ * API is off in the Google Cloud project, or on any other refusal: stats must still return the public numbers.
+ */
+function ytEngagedViews_(ids) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const r = googleJson_('get', `${YT_ANALYTICS}?ids=channel%3D%3DMINE&startDate=2005-01-01&endDate=${today}&metrics=engagedViews&dimensions=video&filters=video%3D%3D${ids.join(',')}&sort=-engagedViews&maxResults=200`);
+    const out = {};
+    (r.rows || []).forEach((row) => { out[row[0]] = Number(row[1]); });
+    return out;
+  } catch (e) {
+    console.log(`YouTube Analytics: ${e.message}`);
+    return {};
+  }
+}
 
 function ytMyPlaylists_() {
   const out = [];
@@ -567,7 +613,10 @@ function ytAccountConnected_(account) {
   return !account || !!props_().getProperty(accountKey_('YT_REFRESH_TOKEN', account));
 }
 
-const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl'];
+// yt-analytics.readonly is for engaged views in stats. An account connected before it was added keeps working;
+// it gets engaged views after connectYouTube is run for it again.
+const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl',
+  'https://www.googleapis.com/auth/yt-analytics.readonly'];
 
 /** Logs the sign-in link. Open it, pick the channel, press Allow. With a name, it connects that extra account. */
 function connectYouTube(account) {
@@ -855,7 +904,12 @@ const Instagram = {
       throw new ApiError('invalid', 'coverUrl must be a public https link to a JPG');
     }
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
+    const firstComment = optText_(p.firstComment, 'firstComment', 2200);
+    if (firstComment && /(?<!\S)#[^\s#]+/.test(firstComment)) {
+      throw new ApiError('invalid', 'firstComment cannot hold hashtags: Instagram counts them with the caption toward its limit of 5');
+    }
     return {
+      firstComment,
       video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
       title: optText_(p.title, 'title', Instagram.limits.title) || (caption || '').split('\n')[0].slice(0, Instagram.limits.title),
       notBefore: publishAt,
@@ -863,7 +917,7 @@ const Instagram = {
   },
 
   steps() {
-    return ['container', 'upload', 'process', 'publish', 'check'];
+    return ['container', 'upload', 'process', 'publish', 'check', 'comment'];
   },
 
   run(step, job, ctx) {
@@ -1074,6 +1128,15 @@ const IG_STEPS = {
     return 'next';
   },
 
+  /** The account's own first comment under the new Reel (needs instagram_manage_comments). */
+  comment(p, s, ctx, c) {
+    if (!p.firstComment || s.commentDone) return 'next';
+    ctx.afterPublish('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
+    s.commentDone = true;
+    ctx.save();
+    return 'next';
+  },
+
   check(p, s, ctx, c) {
     const r = metaGet_(`/${s.videoId}`, { fields: 'permalink,shortcode,timestamp', access_token: c.token });
     if (s.urlFailed) ctx.warn(`Instagram could not take the video from its link (${s.urlFailed}; the file was uploaded from Drive instead`);
@@ -1104,13 +1167,14 @@ const Facebook = {
     if (publishAt && state === 'draft') throw new ApiError('invalid', 'Send publishAt or "state": "draft", not both');
     const description = optText_(p.description, 'description', Facebook.limits.description);
     return {
+      thumbnail: optFile_(p.thumbnail, 'thumbnail'),
       video, description, state, publishAt,
       title: optText_(p.title, 'title', Facebook.limits.title) || (description || '').split('\n')[0].slice(0, Facebook.limits.title),
     };
   },
 
   steps() {
-    return ['start', 'upload', 'finish', 'check'];
+    return ['start', 'upload', 'finish', 'check', 'cover'];
   },
 
   run(step, job, ctx) {
@@ -1203,6 +1267,26 @@ const FB_STEPS = {
       description: p.description, title: p.title || null,
     });
     s.videoId = s.reelId;
+    ctx.save();
+    return 'next';
+  },
+
+  /**
+   * Sets the Reel's cover from a Drive image (POST /{video-id}/thumbnails with is_preferred, Meta's "custom cover
+   * photo" for Reels). Runs after processing, since a thumbnail can only go on a video the Page already has.
+   */
+  cover(p, s, ctx, c) {
+    if (!p.thumbnail || s.coverDone) return 'next';
+    ctx.afterPublish('cover', () => {
+      const m = driveMeta_(p.thumbnail.driveFileId);
+      if (Number(m.size) > 10 * 1024 * 1024) throw new ApiError('invalid', 'The cover is over Facebook\'s 10 MB limit');
+      const r = UrlFetchApp.fetch(`${GRAPH}/${s.videoId}/thumbnails`, {
+        method: 'post', muteHttpExceptions: true,
+        payload: { access_token: c.token, is_preferred: 'true', source: Utilities.newBlob(driveBytes_(p.thumbnail.driveFileId), m.mimeType || 'image/jpeg', 'cover.jpg') },
+      });
+      if (r.getResponseCode() < 200 || r.getResponseCode() >= 300) throw metaError_(r);
+    });
+    s.coverDone = true;
     ctx.save();
     return 'next';
   },
@@ -1588,6 +1672,13 @@ function runJob_(job, started) {
         if (err && err.details && err.details.retry) throw err;
         ctx.warn(`${what}: ${err && err.message ? err.message : err}`);
       }
+    },
+    /**
+     * For extras that run after the post is already public (first comment, Reel cover): every failure is a warning,
+     * also one a retry might fix. A retry here could fail a job whose post is live, and the caller would post it again.
+     */
+    afterPublish: (what, fn) => {
+      try { fn(); } catch (err) { ctx.warn(`${what}: ${err && err.message ? err.message : err}`); }
     },
   };
   saveJob_(job);

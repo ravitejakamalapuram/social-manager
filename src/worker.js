@@ -62,6 +62,13 @@ function runJob_(job, started) {
         ctx.warn(`${what}: ${err && err.message ? err.message : err}`);
       }
     },
+    /**
+     * For extras that run after the post is already public (first comment, Reel cover): every failure is a warning,
+     * also one a retry might fix. A retry here could fail a job whose post is live, and the caller would post it again.
+     */
+    afterPublish: (what, fn) => {
+      try { fn(); } catch (err) { ctx.warn(`${what}: ${err && err.message ? err.message : err}`); }
+    },
   };
   saveJob_(job);
   try {

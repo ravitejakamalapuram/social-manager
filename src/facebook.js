@@ -19,13 +19,14 @@ const Facebook = {
     if (publishAt && state === 'draft') throw new ApiError('invalid', 'Send publishAt or "state": "draft", not both');
     const description = optText_(p.description, 'description', Facebook.limits.description);
     return {
+      thumbnail: optFile_(p.thumbnail, 'thumbnail'),
       video, description, state, publishAt,
       title: optText_(p.title, 'title', Facebook.limits.title) || (description || '').split('\n')[0].slice(0, Facebook.limits.title),
     };
   },
 
   steps() {
-    return ['start', 'upload', 'finish', 'check'];
+    return ['start', 'upload', 'finish', 'check', 'cover'];
   },
 
   run(step, job, ctx) {
@@ -118,6 +119,26 @@ const FB_STEPS = {
       description: p.description, title: p.title || null,
     });
     s.videoId = s.reelId;
+    ctx.save();
+    return 'next';
+  },
+
+  /**
+   * Sets the Reel's cover from a Drive image (POST /{video-id}/thumbnails with is_preferred, Meta's "custom cover
+   * photo" for Reels). Runs after processing, since a thumbnail can only go on a video the Page already has.
+   */
+  cover(p, s, ctx, c) {
+    if (!p.thumbnail || s.coverDone) return 'next';
+    ctx.afterPublish('cover', () => {
+      const m = driveMeta_(p.thumbnail.driveFileId);
+      if (Number(m.size) > 10 * 1024 * 1024) throw new ApiError('invalid', 'The cover is over Facebook\'s 10 MB limit');
+      const r = UrlFetchApp.fetch(`${GRAPH}/${s.videoId}/thumbnails`, {
+        method: 'post', muteHttpExceptions: true,
+        payload: { access_token: c.token, is_preferred: 'true', source: Utilities.newBlob(driveBytes_(p.thumbnail.driveFileId), m.mimeType || 'image/jpeg', 'cover.jpg') },
+      });
+      if (r.getResponseCode() < 200 || r.getResponseCode() >= 300) throw metaError_(r);
+    });
+    s.coverDone = true;
     ctx.save();
     return 'next';
   },

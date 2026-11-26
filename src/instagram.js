@@ -23,7 +23,12 @@ const Instagram = {
       throw new ApiError('invalid', 'coverUrl must be a public https link to a JPG');
     }
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
+    const firstComment = optText_(p.firstComment, 'firstComment', 2200);
+    if (firstComment && /(?<!\S)#[^\s#]+/.test(firstComment)) {
+      throw new ApiError('invalid', 'firstComment cannot hold hashtags: Instagram counts them with the caption toward its limit of 5');
+    }
     return {
+      firstComment,
       video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
       title: optText_(p.title, 'title', Instagram.limits.title) || (caption || '').split('\n')[0].slice(0, Instagram.limits.title),
       notBefore: publishAt,
@@ -31,7 +36,7 @@ const Instagram = {
   },
 
   steps() {
-    return ['container', 'upload', 'process', 'publish', 'check'];
+    return ['container', 'upload', 'process', 'publish', 'check', 'comment'];
   },
 
   run(step, job, ctx) {
@@ -238,6 +243,15 @@ const IG_STEPS = {
   publish(p, s, ctx, c) {
     if (s.videoId) return 'next';
     s.videoId = metaPost_(`/${c.igId}/media_publish`, { creation_id: s.containerId, access_token: c.token }).id;
+    ctx.save();
+    return 'next';
+  },
+
+  /** The account's own first comment under the new Reel (needs instagram_manage_comments). */
+  comment(p, s, ctx, c) {
+    if (!p.firstComment || s.commentDone) return 'next';
+    ctx.afterPublish('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
+    s.commentDone = true;
     ctx.save();
     return 'next';
   },
