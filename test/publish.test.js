@@ -178,7 +178,7 @@ test('a second YouTube channel is an account with its own sign-in', () => {
   const p = (extra) => call('POST', post(Object.assign({ token: admin }, extra)));
   assert.match(p({ account: 'Bad Name' }).error.message, /short name/);
   assert.equal(p({ account: 'second' }).error.code, 'not_connected');
-  run("props_().setProperty('YT_REFRESH_TOKEN_ANAADI', 'r')");
+  run("props_().setProperty('YT_REFRESH_TOKEN_SECOND', 'r')");
   const job = p({ account: 'second' }).job;
   assert.equal(job.status, 'queued');
   assert.equal(p({}).job.status, 'queued'); // the main channel still needs no account
