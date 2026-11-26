@@ -1869,6 +1869,11 @@ function createTokenForClaude() {
   replaceToken_('claude', false);
 }
 
+/** Issues (or replaces) the admin token the GitHub deploy Action uses (secret PUBLISHER_ADMIN_TOKEN). */
+function createTokenForGitHub() {
+  replaceToken_('github-deploy', true);
+}
+
 function replaceToken_(name, admin) {
   const all = tokens_();
   Object.keys(all).forEach((h) => { if (all[h].name === name) delete all[h]; });
