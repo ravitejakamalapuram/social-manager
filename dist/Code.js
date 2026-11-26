@@ -844,7 +844,7 @@ const Instagram = {
   validate(p, now) {
     const video = igVideo_(p.video);
     const caption = optText_(p.caption, 'caption', Instagram.limits.caption);
-    const tags = (caption || '').match(/#[^\s#]+/g) || [];
+    const tags = (caption || '').match(/(?<!\S)#[^\s#]+/g) || [];
     if (tags.length > Instagram.limits.hashtags) {
       throw new ApiError('invalid', `caption has ${tags.length} hashtags; Instagram allows at most ${Instagram.limits.hashtags} since December 2025`);
     }
