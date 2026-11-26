@@ -169,6 +169,10 @@ function fakeMeta(g, u, m, p) {
     return res(200, { id: r.id });
   }
   if (parts[0] === 'ig1' && parts[1] === 'media') return res(200, { data: [{ id: 'm7', permalink: 'https://www.instagram.com/reel/m7/', caption: 'Why Hubble is falling\n#space', timestamp: '2026-11-15T00:00:00+0000', like_count: 40, comments_count: 3 }, { id: 'm8', permalink: 'p8', caption: 'B', like_count: 1, comments_count: 0 }] });
+  if (parts[1] === 'insights' && /reels_skip_rate/.test(q.metric)) {
+    return meta.noWatch ? res(400, { error: { code: 100, message: 'metric not supported for this media' } })
+      : res(200, { data: [{ name: 'reels_skip_rate', total_value: { value: 61.5 } }, { name: 'ig_reels_avg_watch_time', total_value: { value: 9200 } }, { name: 'shares', total_value: { value: 4 } }, { name: 'saved', total_value: { value: 2 } }] });
+  }
   if (parts[1] === 'insights') return meta.noInsights ? res(400, { error: { code: 10, message: 'needs instagram_manage_insights' } }) : res(200, { data: [{ name: 'views', values: [{ value: 812 }] }, { name: 'reach', values: [{ value: 700 }] }] });
   if (parts[0] === 'page1' && parts[1] === 'video_reels') return res(200, { data: [{ id: 'v1', permalink_url: '/reel/v1', description: 'Mangroves', created_time: '2026-11-15T00:00:00+0000', likes: { summary: { total_count: 9 } }, comments: { summary: { total_count: 1 } } }] });
   if (parts[1] === 'video_insights') return res(200, { data: [{ name: 'blue_reels_play_count', values: [{ value: 150 }] }] });
