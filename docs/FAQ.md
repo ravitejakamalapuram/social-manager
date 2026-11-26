@@ -58,6 +58,9 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | `list` | Recent jobs, newest first. Filters: `status`, `platform`, `limit` (max 200). |
 | `retry` | Puts a failed job back in the queue. It carries on from the step that failed. |
 | `cancel` | Cancels a job that hasn't uploaded its video yet. |
+| `stats` | Followers and the newest posts' numbers for one platform. See "How do I read followers, likes and views?" |
+| `comments`, `reply` | Read the newest comments and answer one. See "How do I read and reply to comments?" |
+| `connectYouTube` | Returns a sign-in link for an extra YouTube channel, by `account` name (admin). |
 | `run` | Works the queue now instead of waiting for the trigger (admin). |
 | `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"force": true` to redeploy unchanged code. |
 | `createToken`, `revokeToken`, `listTokens` | Manage tokens (admin). |
