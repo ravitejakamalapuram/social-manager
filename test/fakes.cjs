@@ -207,7 +207,7 @@ function load() {
       newBlob: (str) => ({ getBytes: () => [...Buffer.from(str, 'utf8')] }),
     },
   });
-  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'api']) {
+  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'deploy', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
   vm.runInContext('WAIT_MS = 0', ctx); // a waiting job is due again at once, so tests don't sit out the wait

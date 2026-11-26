@@ -26,7 +26,9 @@ Free Google services, so there is nothing to host:
 In this repo. `src/` is the app, `test/` holds the tests, and `docs/` holds this FAQ.
 
 ### How does new code go live?
-The script deploys itself. Every hour it fetches `dist/Code.js` and the manifest from `main` on GitHub. If they changed, it updates its own code, makes a new version and points the web app at it. The URL never changes, and no credentials are stored in GitHub. To deploy right away, an admin calls `deploy`, or runs `deployLatest` in the editor. If new code adds a permission, open the editor and run `setup` once to allow it.
+On merge. Every push to `main` runs the `deploy` GitHub Action, which calls the admin `deploy` action with the merged commit's SHA. The script fetches `dist/Code.js` and the manifest for that commit, updates its own code, makes a new version and points the web app at it. The URL never changes. The Action needs two repository secrets: `PUBLISHER_URL` (the `/exec` URL) and `PUBLISHER_ADMIN_TOKEN` (an admin token).
+
+The hourly self-update from `main` stays on as a fallback, so if the Action fails or the secrets are missing, new code still goes live within an hour. To deploy by hand, an admin calls `deploy`, or runs `deployLatest` in the editor. If new code adds a permission, open the editor and run `setup` once to allow it.
 
 ---
 
@@ -65,7 +67,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | `comments`, `reply` | Read the newest comments and answer one. See "How do I read and reply to comments?" |
 | `connectYouTube` | Returns a sign-in link for an extra YouTube channel, by `account` name (admin). |
 | `run` | Works the queue now instead of waiting for the trigger (admin). |
-| `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"force": true` to redeploy unchanged code. |
+| `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"ref": "<commit SHA>"` to deploy that exact commit, or `"force": true` to redeploy unchanged code. |
 | `createToken`, `revokeToken`, `listTokens` | Manage tokens (admin). |
 
 ---
@@ -228,7 +230,7 @@ See the [README](../README.md#set-up-once).
 
 ### What is not in git, and what do I redo on a new Google account or machine?
 The code, `dist/Code.js` and the two time triggers (`runQueue` every 5 minutes, `deployLatest` hourly, both made by `setup`) are in git. Not in git, so redo them by hand:
-1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID`, `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
+1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID`, `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `REF_DEPLOYED_AT`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
 2. **The OAuth consents**, which only a person can click: the Meta app login (Instagram and the Page) and the YouTube channel connection. Run `connectYouTubeAccount` for each channel.
 3. **Token expiry**: the Meta Page token lasts about 60 days and Google OAuth apps left in "Testing" mode lose their refresh token after 7 days. Move the Google app to production, and put a calendar reminder to reconnect Meta.
 4. **A new `/exec` URL.** Update `SOCIAL_URL` in the studio repo's GitHub secrets (and `SOCIAL_TOKEN` if you made a new token).

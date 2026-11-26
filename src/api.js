@@ -23,7 +23,7 @@ const ROUTES = {
   retry: { write: true, fn: retry_ },
   cancel: { write: true, fn: cancel_ },
   run: { write: true, admin: true, fn: () => runQueue_() },
-  deploy: { write: true, admin: true, fn: (req) => deployLatest_(req.force === true) },
+  deploy: { write: true, admin: true, fn: (req) => deployLatest_(req.force === true, req.ref) },
   createToken: { write: true, admin: true, fn: createToken_ },
   revokeToken: { write: true, admin: true, fn: revokeToken_ },
   listTokens: { admin: true, fn: listTokens_ },

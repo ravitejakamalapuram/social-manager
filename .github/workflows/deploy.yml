@@ -1,0 +1,28 @@
+name: deploy
+# Every push to main asks the live script to deploy that exact commit now, through the admin `deploy` action
+# (src/deploy.js). The script's hourly self-update stays on as the fallback, so a failed call here only delays
+# a deploy by up to an hour; it never takes the app down.
+# Needs two repository secrets: PUBLISHER_URL (the web app /exec URL) and PUBLISHER_ADMIN_TOKEN (an admin token).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy this commit
+        env:
+          URL: ${{ secrets.PUBLISHER_URL }}
+          TOKEN: ${{ secrets.PUBLISHER_ADMIN_TOKEN }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$TOKEN" ]; then
+            echo "::warning::PUBLISHER_URL or PUBLISHER_ADMIN_TOKEN is not set; the hourly self-update will deploy this commit instead."
+            exit 0
+          fi
+          BODY=$(jq -n --arg t "$TOKEN" --arg r "$GITHUB_SHA" '{action: "deploy", token: $t, ref: $r}')
+          # Apps Script answers a POST with a redirect to the result; -L follows it.
+          OUT=$(curl -sSL --max-time 300 -H 'Content-Type: application/json' -d "$BODY" "$URL")
+          echo "$OUT" | jq -c 'del(.url)' 2>/dev/null || { echo "::error::Not JSON (wrong URL?)"; exit 1; }
+          if [ "$(echo "$OUT" | jq -r .ok)" != "true" ]; then echo "::error::deploy failed"; exit 1; fi
