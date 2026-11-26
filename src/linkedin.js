@@ -17,12 +17,13 @@ let LI_MIN_BYTES = 75 * 1024;
 
 const LinkedIn = {
   name: 'linkedin',
+  limits: { text: 3000, title: 200 },
 
   validate(p) {
     const video = optFile_(p.video, 'video');
     if (!video) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}');
-    const text = optText_(p.text !== undefined ? p.text : p.description, 'text', 3000);
-    const title = optText_(p.title, 'title', 200);
+    const text = optText_(p.text !== undefined ? p.text : p.description, 'text', LinkedIn.limits.text);
+    const title = optText_(p.title, 'title', LinkedIn.limits.title);
     let visibility = optText_(p.visibility, 'visibility', 20) || 'PUBLIC';
     visibility = visibility.toUpperCase();
     if (!LI_VISIBILITY.includes(visibility)) throw new ApiError('invalid', `visibility must be one of ${LI_VISIBILITY.join(', ')}`);

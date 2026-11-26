@@ -43,6 +43,16 @@ function optText_(v, field, max) {
   return v;
 }
 
+/** UTF-8 length of a string, the unit YouTube counts descriptions in. */
+function utf8Bytes_(s) {
+  let n = 0;
+  for (const ch of s) {
+    const c = ch.codePointAt(0);
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  }
+  return n;
+}
+
 function optBool_(v, field) {
   if (v === undefined || v === null) return null;
   if (typeof v !== 'boolean') throw new ApiError('invalid', `${field} must be true or false`);
@@ -200,6 +210,8 @@ const YT_PRIVACY = ['private', 'unlisted', 'public'];
 
 const YouTube = {
   name: 'youtube',
+  /** YouTube Data API: title in characters, description in UTF-8 bytes (Telugu takes 3 a letter), tags in total. */
+  limits: { title: 100, descriptionBytes: 5000, tagsTotal: 500 },
 
   /** Checks a publish request and returns the clean version that is stored on the job. */
   validate(p, now) {
@@ -208,10 +220,14 @@ const YouTube = {
     if (!video && !videoId) throw new ApiError('invalid', 'Send video: {"driveFileId": ...} to upload, or videoId to edit a video already on YouTube');
     if (video && videoId) throw new ApiError('invalid', 'Send video or videoId, not both');
 
-    const title = optText_(p.title, 'title', 100);
+    const title = optText_(p.title, 'title', YouTube.limits.title);
     if (video && !title) throw new ApiError('invalid', 'title is required for an upload');
     if (title && /[<>]/.test(title)) throw new ApiError('invalid', 'title cannot contain < or >');
-    const description = optText_(p.description, 'description', 5000);
+    const description = optText_(p.description, 'description', YouTube.limits.descriptionBytes);
+    const bytes = utf8Bytes_(description || '');
+    if (bytes > YouTube.limits.descriptionBytes) {
+      throw new ApiError('invalid', `description is ${bytes} bytes; the limit is ${YouTube.limits.descriptionBytes} bytes (Telugu and other Indic letters take 3 bytes each, emoji 4)`);
+    }
     if (description && /[<>]/.test(description)) throw new ApiError('invalid', 'description cannot contain < or >');
 
     let tags = null;
@@ -220,7 +236,7 @@ const YouTube = {
       tags = p.tags.map((t) => t.trim()).filter(Boolean);
       // YouTube counts a tag with a space as if it had quotes around it, plus a comma between tags.
       const len = tags.reduce((n, t) => n + t.length + (t.includes(' ') ? 2 : 0), 0) + Math.max(tags.length - 1, 0);
-      if (len > 500) throw new ApiError('invalid', `tags add up to ${len} characters; the limit is 500`);
+      if (len > YouTube.limits.tagsTotal) throw new ApiError('invalid', `tags add up to ${len} characters; the limit is ${YouTube.limits.tagsTotal}`);
     }
 
     const categoryId = p.categoryId === undefined || p.categoryId === null ? null : String(p.categoryId);
@@ -822,11 +838,16 @@ const firstLine_ = (s) => String(s || '').split('\n')[0].slice(0, 100);
 
 const Instagram = {
   name: 'instagram',
+  /** Caption in characters; hashtags cut from 30 to 5 per post in December 2025. */
+  limits: { caption: 2200, hashtags: 5, title: 100 },
 
   validate(p, now) {
     const video = igVideo_(p.video);
-    const caption = optText_(p.caption, 'caption', 2200);
-    if (caption && (caption.match(/#/g) || []).length > 30) throw new ApiError('invalid', 'Instagram allows at most 30 hashtags');
+    const caption = optText_(p.caption, 'caption', Instagram.limits.caption);
+    const tags = (caption || '').match(/(?<!\S)#[^\s#]+/g) || [];
+    if (tags.length > Instagram.limits.hashtags) {
+      throw new ApiError('invalid', `caption has ${tags.length} hashtags; Instagram allows at most ${Instagram.limits.hashtags} since December 2025`);
+    }
     const coverMs = p.coverAtMs === undefined || p.coverAtMs === null ? null : Number(p.coverAtMs);
     if (coverMs !== null && !(coverMs >= 0)) throw new ApiError('invalid', 'coverAtMs must be a number of milliseconds into the video');
     const coverUrl = p.coverUrl === undefined || p.coverUrl === null ? null : p.coverUrl;
@@ -836,7 +857,7 @@ const Instagram = {
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
     return {
       video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
-      title: optText_(p.title, 'title', 100) || (caption || '').split('\n')[0].slice(0, 100),
+      title: optText_(p.title, 'title', Instagram.limits.title) || (caption || '').split('\n')[0].slice(0, Instagram.limits.title),
       notBefore: publishAt,
     };
   },
@@ -1053,6 +1074,8 @@ const FB_STATES = ['published', 'draft'];
 
 const Facebook = {
   name: 'facebook',
+  /** Our own caps: Meta documents no Reel limit, and these leave room. */
+  limits: { title: 100, description: 5000 },
 
   validate(p, now) {
     const video = optFile_(p.video, 'video');
@@ -1061,10 +1084,10 @@ const Facebook = {
     if (!FB_STATES.includes(state)) throw new ApiError('invalid', `state must be one of ${FB_STATES.join(', ')}`);
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
     if (publishAt && state === 'draft') throw new ApiError('invalid', 'Send publishAt or "state": "draft", not both');
-    const description = optText_(p.description, 'description', 5000);
+    const description = optText_(p.description, 'description', Facebook.limits.description);
     return {
       video, description, state, publishAt,
-      title: optText_(p.title, 'title', 100) || (description || '').split('\n')[0].slice(0, 100),
+      title: optText_(p.title, 'title', Facebook.limits.title) || (description || '').split('\n')[0].slice(0, Facebook.limits.title),
     };
   },
 
@@ -1207,12 +1230,13 @@ let LI_MIN_BYTES = 75 * 1024;
 
 const LinkedIn = {
   name: 'linkedin',
+  limits: { text: 3000, title: 200 },
 
   validate(p) {
     const video = optFile_(p.video, 'video');
     if (!video) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}');
-    const text = optText_(p.text !== undefined ? p.text : p.description, 'text', 3000);
-    const title = optText_(p.title, 'title', 200);
+    const text = optText_(p.text !== undefined ? p.text : p.description, 'text', LinkedIn.limits.text);
+    const title = optText_(p.title, 'title', LinkedIn.limits.title);
     let visibility = optText_(p.visibility, 'visibility', 20) || 'PUBLIC';
     visibility = visibility.toUpperCase();
     if (!LI_VISIBILITY.includes(visibility)) throw new ApiError('invalid', `visibility must be one of ${LI_VISIBILITY.join(', ')}`);
@@ -1725,7 +1749,10 @@ function reply_(req) {
 }
 
 function platformsInfo_() {
-  return { platforms: Object.keys(platforms_()) };
+  const all = platforms_();
+  const limits = {};
+  Object.keys(all).forEach((k) => { limits[k] = all[k].limits || {}; });
+  return { platforms: Object.keys(all), limits };
 }
 
 function jobByIdOrKey_(req) {

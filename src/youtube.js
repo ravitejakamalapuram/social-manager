@@ -10,6 +10,8 @@ const YT_PRIVACY = ['private', 'unlisted', 'public'];
 
 const YouTube = {
   name: 'youtube',
+  /** YouTube Data API: title in characters, description in UTF-8 bytes (Telugu takes 3 a letter), tags in total. */
+  limits: { title: 100, descriptionBytes: 5000, tagsTotal: 500 },
 
   /** Checks a publish request and returns the clean version that is stored on the job. */
   validate(p, now) {
@@ -18,10 +20,14 @@ const YouTube = {
     if (!video && !videoId) throw new ApiError('invalid', 'Send video: {"driveFileId": ...} to upload, or videoId to edit a video already on YouTube');
     if (video && videoId) throw new ApiError('invalid', 'Send video or videoId, not both');
 
-    const title = optText_(p.title, 'title', 100);
+    const title = optText_(p.title, 'title', YouTube.limits.title);
     if (video && !title) throw new ApiError('invalid', 'title is required for an upload');
     if (title && /[<>]/.test(title)) throw new ApiError('invalid', 'title cannot contain < or >');
-    const description = optText_(p.description, 'description', 5000);
+    const description = optText_(p.description, 'description', YouTube.limits.descriptionBytes);
+    const bytes = utf8Bytes_(description || '');
+    if (bytes > YouTube.limits.descriptionBytes) {
+      throw new ApiError('invalid', `description is ${bytes} bytes; the limit is ${YouTube.limits.descriptionBytes} bytes (Telugu and other Indic letters take 3 bytes each, emoji 4)`);
+    }
     if (description && /[<>]/.test(description)) throw new ApiError('invalid', 'description cannot contain < or >');
 
     let tags = null;
@@ -30,7 +36,7 @@ const YouTube = {
       tags = p.tags.map((t) => t.trim()).filter(Boolean);
       // YouTube counts a tag with a space as if it had quotes around it, plus a comma between tags.
       const len = tags.reduce((n, t) => n + t.length + (t.includes(' ') ? 2 : 0), 0) + Math.max(tags.length - 1, 0);
-      if (len > 500) throw new ApiError('invalid', `tags add up to ${len} characters; the limit is 500`);
+      if (len > YouTube.limits.tagsTotal) throw new ApiError('invalid', `tags add up to ${len} characters; the limit is ${YouTube.limits.tagsTotal}`);
     }
 
     const categoryId = p.categoryId === undefined || p.categoryId === null ? null : String(p.categoryId);

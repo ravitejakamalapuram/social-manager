@@ -7,6 +7,8 @@ const FB_STATES = ['published', 'draft'];
 
 const Facebook = {
   name: 'facebook',
+  /** Our own caps: Meta documents no Reel limit, and these leave room. */
+  limits: { title: 100, description: 5000 },
 
   validate(p, now) {
     const video = optFile_(p.video, 'video');
@@ -15,10 +17,10 @@ const Facebook = {
     if (!FB_STATES.includes(state)) throw new ApiError('invalid', `state must be one of ${FB_STATES.join(', ')}`);
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
     if (publishAt && state === 'draft') throw new ApiError('invalid', 'Send publishAt or "state": "draft", not both');
-    const description = optText_(p.description, 'description', 5000);
+    const description = optText_(p.description, 'description', Facebook.limits.description);
     return {
       video, description, state, publishAt,
-      title: optText_(p.title, 'title', 100) || (description || '').split('\n')[0].slice(0, 100),
+      title: optText_(p.title, 'title', Facebook.limits.title) || (description || '').split('\n')[0].slice(0, Facebook.limits.title),
     };
   },
 

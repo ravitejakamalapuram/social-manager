@@ -148,7 +148,10 @@ function reply_(req) {
 }
 
 function platformsInfo_() {
-  return { platforms: Object.keys(platforms_()) };
+  const all = platforms_();
+  const limits = {};
+  Object.keys(all).forEach((k) => { limits[k] = all[k].limits || {}; });
+  return { platforms: Object.keys(all), limits };
 }
 
 function jobByIdOrKey_(req) {

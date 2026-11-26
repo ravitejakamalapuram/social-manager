@@ -32,6 +32,8 @@ test('instagram: container, chunked upload, waits for processing, publishes once
 
 test('instagram: coverUrl goes to Instagram as cover_url; a non-https cover is refused', () => {
   const t = setup();
+  const six = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides #a #b #c #d #e #f' });
+  assert.match(six.error.message, /6 hashtags; Instagram allows at most 5/);
   const bad = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, coverUrl: 'http://x/c.jpg' });
   assert.equal(bad.ok, false);
   assert.match(bad.error.message, /coverUrl/);

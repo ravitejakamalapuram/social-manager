@@ -56,7 +56,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | Action | What it does |
 | --- | --- |
 | `health` | Is it up? No token needed. |
-| `platforms` | Lists the platforms. |
+| `platforms` | Lists the platforms and each one's text `limits` (see "Where are the text limits?"). |
 | `channel` | Shows which YouTube channel it posts to. Send `"platform": "linkedin"` for the LinkedIn profile and when its sign-in runs out. |
 | `publish` | Queues a post. Returns a job. |
 | `get` | One job, by `id` or by your `key`. |
@@ -113,7 +113,7 @@ Only `platform`, `video` and `title` are required. The answer is `{"ok": true, "
 - `captions`: SRT files in Drive, one per language.
 - `playlists`: playlist ids, or exact playlist titles. A title the channel doesn't have yet is made as a new public playlist.
 
-Limits: title 100 characters, description 5,000, tags 500 in total. Titles and descriptions can't contain `<` or `>`.
+Limits: title 100 characters, description 5,000 bytes (not characters: Telugu and other Indic letters take 3 bytes each and emoji 4, so a Telugu description fits about 1,600 letters), tags 500 in total. Titles and descriptions can't contain `<` or `>`.
 
 ### How do I change a video that is already on YouTube?
 Send `videoId` instead of `video`. Only the fields you send change; everything else on the video stays as it was. This works for videos uploaded any way, including the YouTube app. Example, schedule an existing video:
@@ -155,7 +155,7 @@ LinkedIn sign-ins last 60 days and LinkedIn gives small apps no way to renew the
 ## Posting to Instagram and Facebook
 
 ### How do I post a Reel to Instagram?
-Send `publish` with `"platform": "instagram"`, `video` and an optional `caption` (up to 2,200 characters and 30 hashtags). Optional: `coverUrl` is a public https link to a JPG used as the Reel's cover (the grid and Reels tab show it; it must stay up until the job is done), or `coverAtMs` picks a frame of the video instead (Instagram ignores it when `coverUrl` is sent), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
+Send `publish` with `"platform": "instagram"`, `video` and an optional `caption` (up to 2,200 characters and 5 hashtags; Instagram cut the limit from 30 in December 2025). Optional: `coverUrl` is a public https link to a JPG used as the Reel's cover (the grid and Reels tab show it; it must stay up until the job is done), or `coverAtMs` picks a frame of the video instead (Instagram ignores it when `coverUrl` is sent), `shareToFeed: false` keeps it off the main grid, `publishAt` holds the job until that time, and `key` works as on YouTube. Instagram's API has no private posts, so a done job is public. The result has `mediaId` and `url`.
 
 ### Which way should I give Instagram the video?
 Best is a public link: `video: {"url": "https://...", "driveFileId": "..."}`. Instagram then fetches the file itself. The link must be a direct https link to the MP4 that anyone can open, and it must stay up until the job is done. The Drive file is the fallback: if Instagram can't fetch the link, the job uploads the Drive file instead and says so in a warning. You can send only `url`, or only `driveFileId`.
@@ -192,6 +192,10 @@ YouTube uses the `youtube.force-ssl` permission the channel already granted. Ins
 No, as long as it only posts to Pages and Instagram accounts of people who have a role on the app (you, as its admin). App Review is only needed to post for other people's accounts.
 
 ---
+
+### Where are the text limits?
+
+Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and `{"action":"platforms"}` returns them, so a pipeline that writes titles and captions can read them instead of keeping its own copy. A post over a limit is refused with a message that says which field and by how much; nothing is cut. Today: YouTube title 100 characters, description 5,000 UTF-8 bytes, tags 500 in total; Instagram caption 2,200 characters and 5 hashtags; Facebook title 100 and description 5,000 characters; LinkedIn text 3,000 and title 200 characters.
 
 ## Limits and setup
 
