@@ -11,7 +11,7 @@ function deployLatest() {
 
 function deployLatest_(force) {
   const p = props_();
-  const repo = p.getProperty('SOURCE_REPO') || 'ravitejakamalapuram/social-manager';
+  const repo = p.getProperty('SOURCE_REPO') || 'ravitejakamalapuram/social-media-publisher';
   const branch = p.getProperty('SOURCE_BRANCH') || 'main';
   const raw = (path) => {
     const r = UrlFetchApp.fetch(`https://raw.githubusercontent.com/${repo}/${branch}/${path}`, { muteHttpExceptions: true });

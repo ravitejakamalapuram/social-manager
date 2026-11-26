@@ -1,5 +1,5 @@
 {
-  "name": "social-manager",
+  "name": "social-media-publisher",
   "version": "1.0.0",
   "private": true,
   "description": "Post videos to social platforms (YouTube, Instagram, Facebook, LinkedIn) from an API, on Google Apps Script",

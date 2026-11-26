@@ -1,13 +1,16 @@
-# Social Manager FAQ
+# Social Media Publisher FAQ
 
-Short answers about what Social Manager is and how to use it. If you are an AI agent starting work with Social Manager, read this page first. It has everything you need to call the API.
+Short answers about what Social Media Publisher is and how to use it. If you are an AI agent starting work with Social Media Publisher, read this page first. It has everything you need to call the API.
 
 ---
 
 ## The basics
 
-### What is Social Manager?
-Social Manager posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Social Manager uploads it and sets everything up.
+### What is Social Media Publisher?
+Social Media Publisher posts your videos to social platforms for you, with no browser. You put the video in Google Drive and send one API call with the title, description, tags, thumbnail, captions, playlist and publish time. Social Media Publisher uploads it and sets everything up.
+
+### Was it called Social Manager?
+Yes. The repo was renamed from `social-manager` to `social-media-publisher` in November 2026. Nothing about the API, the `/exec` URL or the tokens changed. GitHub redirects the old repo links. An install made before the rename keeps its "Social Manager" Sheet and Apps Script project names, which is fine. If its `SOURCE_REPO` Script Property is set to the old name, change it to `ravitejakamalapuram/social-media-publisher` (or delete it to use the default).
 
 ### Which platforms does it support?
 YouTube, Instagram Reels, Facebook Page Reels and LinkedIn (your personal profile). Each platform is one adapter file, so adding one doesn't change the others.
@@ -16,7 +19,7 @@ YouTube, Instagram Reels, Facebook Page Reels and LinkedIn (your personal profil
 Free Google services, so there is nothing to host:
 
 - A **Google Apps Script web app** is the API. It is one URL.
-- A **Google Sheet** named "Social Manager" keeps one row per job, so you can see what happened.
+- A **Google Sheet** named "Social Media Publisher" (or "Social Manager" if it was set up before the rename) keeps one row per job, so you can see what happened.
 - A **time trigger** runs the queue every 5 minutes.
 
 ### Where is the code?

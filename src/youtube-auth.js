@@ -74,7 +74,7 @@ function youTubeCallback(req) {
   CacheService.getScriptCache().put(ytKey_('YT_ACCESS'), t.access_token, 3000);
   let who = '';
   try { who = YouTube.whoami().title; } catch (err) { who = `(could not read the channel: ${err.message})`; }
-  return HtmlService.createHtmlOutput(`Connected${YT_ACCOUNT ? ` as the account "${YT_ACCOUNT}"` : ''}. Social Manager now posts to the YouTube channel: ${who}. You can close this tab.`);
+  return HtmlService.createHtmlOutput(`Connected${YT_ACCOUNT ? ` as the account "${YT_ACCOUNT}"` : ''}. Social Media Publisher now posts to the YouTube channel: ${who}. You can close this tab.`);
 }
 
 function ytRedirectUri_() {

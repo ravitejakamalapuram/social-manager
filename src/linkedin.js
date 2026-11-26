@@ -212,5 +212,5 @@ function linkedInCallback(req) {
   p.deleteProperty('LI_PERSON');
   let who = '';
   try { who = LinkedIn.whoami().title; } catch (err) { who = `(could not read the profile: ${err.message})`; }
-  return HtmlService.createHtmlOutput(`Connected. Social Manager now posts to LinkedIn as: ${who}. The sign-in lasts until ${p.getProperty('LI_EXPIRES_AT')}. You can close this tab.`);
+  return HtmlService.createHtmlOutput(`Connected. Social Media Publisher now posts to LinkedIn as: ${who}. The sign-in lasts until ${p.getProperty('LI_EXPIRES_AT')}. You can close this tab.`);
 }

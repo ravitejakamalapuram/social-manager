@@ -1,12 +1,12 @@
-# social-manager
+# social-media-publisher
 
-Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Manager does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels, Facebook Page Reels and LinkedIn.
+Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Media Publisher does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels, Facebook Page Reels and LinkedIn.
 
 ```
  Claude tasks / scripts / curl
               │  HTTPS + token
               ▼
-   Apps Script web app (this repo) ──► "Social Manager" Sheet: one row per job
+   Apps Script web app (this repo) ──► "Social Media Publisher" Sheet: one row per job
               │  every 5 min: work the queue
               ▼
    Drive (read the files) ──► one adapter per platform: YouTube, Instagram, Facebook, LinkedIn
@@ -23,7 +23,7 @@ Post videos to social platforms from one API call, with no browser. Put the vide
 
 ## Where it fits
 
-Social Manager is a standalone service. It knows nothing about the apps that call it: no channel names, schedules or approval rules live here. A client (a publisher script, a scheduled job, `curl`) decides what to post and when, calls this API with its token, and reads the job back for the post links. Client-specific settings belong in the client.
+Social Media Publisher is a standalone service. It knows nothing about the apps that call it: no channel names, schedules or approval rules live here. A client (a publisher script, a scheduled job, `curl`) decides what to post and when, calls this API with its token, and reads the job back for the post links. Client-specific settings belong in the client.
 
 ```bash
 curl -sL "$SOCIAL_URL" -d '{"action":"publish","token":"'"$T"'","platform":"youtube","video":{"driveFileId":"..."},"title":"...","privacy":"private"}'
@@ -41,7 +41,7 @@ curl -sL "$SOCIAL_URL?action=stats&platform=instagram&token=$T"
 
 ## Set up (once)
 
-1. Create a new project at [script.google.com](https://script.google.com) named **Social Manager**, signed in to the Google account that owns the YouTube channel. Make sure the Apps Script API is on at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
+1. Create a new project at [script.google.com](https://script.google.com) named **Social Media Publisher**, signed in to the Google account that owns the YouTube channel. Make sure the Apps Script API is on at [script.google.com/home/usersettings](https://script.google.com/home/usersettings).
 2. Paste `dist/Code.js` over `Code.gs`. In Project Settings, tick "Show appsscript.json", and paste `src/appsscript.json` over it.
 3. Pick **setup** and press **Run**. Allow the permissions. The log shows the jobs sheet, the YouTube channel and the admin token (shown once).
 4. Pick **deployLatest** and press **Run**. It creates the web app and logs its URL. From then on the script updates itself from `main` every hour.

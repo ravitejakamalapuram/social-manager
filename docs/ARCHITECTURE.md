@@ -1,10 +1,10 @@
-# How Social Manager works
+# How Social Media Publisher works
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  A["Owner's own jobs<br/>(HTTPS + token)"] -->|publish| B["Social Manager<br/>Apps Script web app"]
+  A["Owner's own jobs<br/>(HTTPS + token)"] -->|publish| B["Social Media Publisher<br/>Apps Script web app"]
   B -->|job row| C[("Google Sheet<br/>job log")]
   T["Time trigger<br/>every 5 min"] --> B
   B -->|read named files| D["Owner's Google Drive<br/>video, thumbnail, captions"]
@@ -20,7 +20,7 @@ Everything runs inside the owner's Google account. No other server stores data.
 sequenceDiagram
   participant O as Owner
   participant G as Google sign-in
-  participant S as Social Manager
+  participant S as Social Media Publisher
   participant Y as YouTube Data API
   O->>S: Run connectYouTube once
   S->>G: Consent screen (youtube.upload, youtube.force-ssl)
