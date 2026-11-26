@@ -66,6 +66,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | `stats` | Followers and the newest posts' numbers for one platform. See "How do I read followers, likes and views?" |
 | `comments`, `reply` | Read the newest comments and answer one. See "How do I read and reply to comments?" |
 | `connectYouTube` | Returns a sign-in link for an extra YouTube channel, by `account` name (admin). |
+| `connectMeta` | Returns a sign-in link for an extra Facebook Page and its Instagram account, by `account` name (admin). |
 | `run` | Works the queue now instead of waiting for the trigger (admin). |
 | `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"ref": "<commit SHA>"` to deploy that exact commit, or `"force": true` to redeploy unchanged code. |
 | `createToken`, `revokeToken`, `listTokens` | Manage tokens (admin). |
@@ -225,12 +226,19 @@ Yes. The first channel is the main one. Each extra channel is an "account" with 
 3. Add `"account":"second"` to any YouTube call: `publish`, `channel`, `stats`, `comments`, `reply`.
 Leave `account` out and the call uses the main channel, as before. A publish to an account that is not connected fails at once with `not_connected`. All accounts share the project's daily YouTube quota.
 
+### Can it post to more than one Instagram account or Facebook Page?
+Yes, the same way as YouTube. The first Page (with its Instagram account) is the main one; each extra Page is an "account" with a short name, like `second`. Each Instagram account must be professional and linked to its own Page.
+1. POST `{"action":"connectMeta","token":"<admin token>","account":"second","match":"@second_insta"}`. It returns a `url`, valid for 10 minutes. `match` is the Page's name or id, or its Instagram @username; it picks the Page when the sign-in shares more than one, and an extra account never guesses without it.
+2. Open the link signed in to Facebook as the app's admin. Tick every Page the script posts to, the main one too, so its access stays, and press Continue.
+3. Add `"account":"second"` to any Instagram or Facebook call: `publish`, `channel`, `stats`, `comments`, `reply`.
+Leave `account` out and the call uses the main Page, as before. A publish to an account that is not connected fails at once with `not_connected`. Each Instagram account has its own 50 posts a day.
+
 ### How do I set it up?
 See the [README](../README.md#set-up-once).
 
 ### What is not in git, and what do I redo on a new Google account or machine?
 The code, `dist/Code.js` and the two time triggers (`runQueue` every 5 minutes, `deployLatest` hourly, both made by `setup`) are in git. Not in git, so redo them by hand:
-1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID`, `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `REF_DEPLOYED_AT`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
+1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID` (and the same with `_<ACCOUNT>` for each extra Page), `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `REF_DEPLOYED_AT`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
 2. **The OAuth consents**, which only a person can click: the Meta app login (Instagram and the Page) and the YouTube channel connection. Run `connectYouTubeAccount` for each channel.
 3. **Token expiry**: the Meta Page token lasts about 60 days and Google OAuth apps left in "Testing" mode lose their refresh token after 7 days. Move the Google app to production, and put a calendar reminder to reconnect Meta.
 4. **A new `/exec` URL.** Update `SOCIAL_URL` in the studio repo's GitHub secrets (and `SOCIAL_TOKEN` if you made a new token).

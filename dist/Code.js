@@ -534,28 +534,28 @@ function ytMyPlaylists_() {
  */
 
 /** The account the current API call or job works as; '' is the main channel. */
-let YT_ACCOUNT = '';
+let ACCOUNT = '';
 
-function ytAccountName_(v) {
+function accountName_(v) {
   if (v === undefined || v === null || v === '') return '';
   if (typeof v !== 'string' || !/^[a-z0-9-]{1,30}$/.test(v)) throw new ApiError('invalid', 'account must be a short name of small letters, digits or dashes, like "second"');
   return v;
 }
 
-function ytKey_(k, account) {
-  const a = account === undefined ? YT_ACCOUNT : account;
+function accountKey_(k, account) {
+  const a = account === undefined ? ACCOUNT : account;
   return a ? `${k}_${a.toUpperCase().replace(/-/g, '_')}` : k;
 }
 
 function ytAccountConnected_(account) {
-  return !account || !!props_().getProperty(ytKey_('YT_REFRESH_TOKEN', account));
+  return !account || !!props_().getProperty(accountKey_('YT_REFRESH_TOKEN', account));
 }
 
 const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl'];
 
 /** Logs the sign-in link. Open it, pick the channel, press Allow. With a name, it connects that extra account. */
 function connectYouTube(account) {
-  const name = ytAccountName_(typeof account === 'string' ? account : '');
+  const name = accountName_(typeof account === 'string' ? account : '');
   const p = props_();
   if (!p.getProperty('YT_CLIENT_ID') || !p.getProperty('YT_CLIENT_SECRET')) {
     throw new Error('Add the YT_CLIENT_ID and YT_CLIENT_SECRET script properties first (see the FAQ).');
@@ -591,12 +591,12 @@ function youTubeCallback(req) {
   });
   const t = JSON.parse(r.getContentText());
   if (!t.refresh_token) return HtmlService.createHtmlOutput(`Sign-in failed: ${String(t.error_description || t.error || r.getResponseCode())}`);
-  YT_ACCOUNT = ytAccountName_((req.parameter && req.parameter.account) || '');
-  p.setProperty(ytKey_('YT_REFRESH_TOKEN'), t.refresh_token);
-  CacheService.getScriptCache().put(ytKey_('YT_ACCESS'), t.access_token, 3000);
+  ACCOUNT = accountName_((req.parameter && req.parameter.account) || '');
+  p.setProperty(accountKey_('YT_REFRESH_TOKEN'), t.refresh_token);
+  CacheService.getScriptCache().put(accountKey_('YT_ACCESS'), t.access_token, 3000);
   let who = '';
   try { who = YouTube.whoami().title; } catch (err) { who = `(could not read the channel: ${err.message})`; }
-  return HtmlService.createHtmlOutput(`Connected${YT_ACCOUNT ? ` as the account "${YT_ACCOUNT}"` : ''}. Social Media Publisher now posts to the YouTube channel: ${who}. You can close this tab.`);
+  return HtmlService.createHtmlOutput(`Connected${ACCOUNT ? ` as the account "${ACCOUNT}"` : ''}. Social Media Publisher now posts to the YouTube channel: ${who}. You can close this tab.`);
 }
 
 function ytRedirectUri_() {
@@ -606,11 +606,11 @@ function ytRedirectUri_() {
 /** Access token for YouTube calls: the channel sign-in if there is one, else the script's own. */
 function youTubeToken_() {
   const p = props_();
-  const refresh = p.getProperty(ytKey_('YT_REFRESH_TOKEN'));
-  if (!refresh && YT_ACCOUNT) throw new ApiError('not_connected', `The YouTube account "${YT_ACCOUNT}" is not connected; call connectYouTube with that account first`, { retry: false });
+  const refresh = p.getProperty(accountKey_('YT_REFRESH_TOKEN'));
+  if (!refresh && ACCOUNT) throw new ApiError('not_connected', `The YouTube account "${ACCOUNT}" is not connected; call connectYouTube with that account first`, { retry: false });
   if (!refresh) return ScriptApp.getOAuthToken();
   const cache = CacheService.getScriptCache();
-  const hit = cache.get(ytKey_('YT_ACCESS'));
+  const hit = cache.get(accountKey_('YT_ACCESS'));
   if (hit) return hit;
   const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
     method: 'post', muteHttpExceptions: true,
@@ -618,7 +618,7 @@ function youTubeToken_() {
   });
   const t = JSON.parse(r.getContentText());
   if (!t.access_token) throw new ApiError('upstream', `YouTube sign-in failed (${t.error || r.getResponseCode()}); run connectYouTube() again`, { status: r.getResponseCode(), retry: false });
-  cache.put(ytKey_('YT_ACCESS'), t.access_token, Math.min(Number(t.expires_in || 3600) - 300, 3000));
+  cache.put(accountKey_('YT_ACCESS'), t.access_token, Math.min(Number(t.expires_in || 3600) - 300, 3000));
   return t.access_token;
 }
 
@@ -630,6 +630,10 @@ function youTubeToken_() {
  * https://script.google.com/macros/d/<script id>/usercallback in the app's "Valid OAuth Redirect URIs".
  * Then run connectMeta() in the editor and open the link it logs. The callback keeps a Page token that
  * does not expire, the Page id and the id of the Instagram professional account linked to that Page.
+ *
+ * More than one Page: each extra Page (with its Instagram account) is an "account" with a short name, the
+ * same as extra YouTube channels. Its Page token, Page id and Instagram id are kept beside the main ones
+ * (META_PAGE_ID_<NAME> and so on), and a call that sends "account" uses them.
  */
 
 const GRAPH_VERSION = 'v24.0';
@@ -643,46 +647,74 @@ const META_SCOPES = [
   'instagram_manage_comments', 'pages_read_user_content', 'pages_manage_engagement',
 ];
 
-/** Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue. */
-function connectMeta() {
+/**
+ * Logs the sign-in link. Open it, pick the Page and its Instagram account, press Continue.
+ * With a name, it connects that extra account; match (a Page name or id, or an Instagram @username) picks
+ * the Page when the sign-in shares more than one.
+ */
+function connectMeta(account, match) {
+  const name = accountName_(typeof account === 'string' ? account : '');
   const p = props_();
   if (!p.getProperty('META_APP_ID') || !p.getProperty('META_APP_SECRET')) {
     throw new Error('Add the META_APP_ID and META_APP_SECRET script properties first (see the FAQ).');
   }
-  const state = ScriptApp.newStateToken().withMethod('metaCallback').withTimeout(600).createToken();
+  const state = ScriptApp.newStateToken().withMethod('metaCallback').withArgument('account', name)
+    .withArgument('match', typeof match === 'string' ? match : '').withTimeout(600).createToken();
   const q = { client_id: p.getProperty('META_APP_ID'), redirect_uri: ytRedirectUri_(), response_type: 'code', state };
   // Apps that use Facebook Login for Business name a configuration instead of a list of permissions.
   if (p.getProperty('META_CONFIG_ID')) q.config_id = p.getProperty('META_CONFIG_ID'); else q.scope = META_SCOPES.join(',');
   const url = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${Object.keys(q).map((k) => `${k}=${encodeURIComponent(q[k])}`).join('&')}`;
-  console.log(`Open this link, pick the Page and Instagram account, and press Continue (valid 10 minutes):\n${url}`);
+  console.log(`Open this link, pick the Page${name ? ` for the account "${name}"` : ''} and its Instagram account, and press Continue (valid 10 minutes):\n${url}`);
   return url;
+}
+
+/** The Page the sign-in shared that this account should use: match first, then the one it had, then (main account only) the first. */
+function pickMetaPage_(pages, account, match, current) {
+  const m = String(match || '').replace(/^@/, '').toLowerCase();
+  if (m) return pages.find((x) => x.id === m || String(x.name || '').toLowerCase() === m
+    || (x.instagram_business_account && String(x.instagram_business_account.username || '').toLowerCase() === m)) || null;
+  const had = pages.find((x) => x.id === current);
+  if (had) return had;
+  return account ? (pages.length === 1 ? pages[0] : null) : pages[0] || null;
 }
 
 function metaCallback(req) {
   try {
     const p = props_();
+    const prm = req.parameter || {};
+    ACCOUNT = accountName_(prm.account || '');
     const app = { client_id: p.getProperty('META_APP_ID'), client_secret: p.getProperty('META_APP_SECRET') };
-    const short = metaGet_('/oauth/access_token', Object.assign({ redirect_uri: ytRedirectUri_(), code: req.parameter.code }, app));
+    const short = metaGet_('/oauth/access_token', Object.assign({ redirect_uri: ytRedirectUri_(), code: prm.code }, app));
     // A Page token read with a long-lived user token never expires.
     const long = metaGet_('/oauth/access_token', Object.assign({ grant_type: 'fb_exchange_token', fb_exchange_token: short.access_token }, app));
     const pages = metaGet_('/me/accounts', { fields: 'id,name,access_token,instagram_business_account{id,username}', access_token: long.access_token }).data || [];
-    const want = p.getProperty('META_PAGE_ID');
-    const page = pages.find((x) => x.id === want) || pages[0];
-    if (!page) return HtmlService.createHtmlOutput('Sign-in worked, but no Facebook Page was shared. Run connectMeta() again and tick your Page.');
-    p.setProperties({ META_PAGE_ID: page.id, META_PAGE_TOKEN: page.access_token });
+    if (!pages.length) return HtmlService.createHtmlOutput('Sign-in worked, but no Facebook Page was shared. Run connectMeta() again and tick your Page.');
+    const page = pickMetaPage_(pages, ACCOUNT, prm.match, p.getProperty(accountKey_('META_PAGE_ID')));
+    if (!page) {
+      const names = pages.map((x) => x.name + (x.instagram_business_account ? ` (@${x.instagram_business_account.username})` : '')).join(', ');
+      return HtmlService.createHtmlOutput(`Sign-in worked, but it isn't clear which Page is ${ACCOUNT ? `the account "${ACCOUNT}"` : 'meant'}. Shared: ${names}. Run connectMeta again with match set to one of them.`);
+    }
+    p.setProperties({ [accountKey_('META_PAGE_ID')]: page.id, [accountKey_('META_PAGE_TOKEN')]: page.access_token });
     const ig = page.instagram_business_account;
-    if (ig) p.setProperty('META_IG_ID', ig.id); else p.deleteProperty('META_IG_ID');
+    if (ig) p.setProperty(accountKey_('META_IG_ID'), ig.id); else p.deleteProperty(accountKey_('META_IG_ID'));
     const igText = ig ? `Instagram: @${ig.username}.` : 'No Instagram professional account is linked to this Page, so Instagram posts will fail until one is.';
-    return HtmlService.createHtmlOutput(`Connected. Facebook Page: ${page.name}. ${igText} You can close this tab.`);
+    return HtmlService.createHtmlOutput(`Connected${ACCOUNT ? ` as the account "${ACCOUNT}"` : ''}. Facebook Page: ${page.name}. ${igText} You can close this tab.`);
   } catch (err) {
     return HtmlService.createHtmlOutput(`Sign-in failed: ${err.message}`);
   }
 }
 
+function metaConnected_(account) {
+  return !account || !!props_().getProperty(accountKey_('META_PAGE_TOKEN', account));
+}
+
 function metaConfig_(needIg) {
   const p = props_();
-  const c = { token: p.getProperty('META_PAGE_TOKEN'), pageId: p.getProperty('META_PAGE_ID'), igId: p.getProperty('META_IG_ID') };
-  if (!c.token || !c.pageId) throw new ApiError('not_connected', 'Meta is not connected yet; run connectMeta() (see the FAQ)');
+  const c = { token: p.getProperty(accountKey_('META_PAGE_TOKEN')), pageId: p.getProperty(accountKey_('META_PAGE_ID')), igId: p.getProperty(accountKey_('META_IG_ID')) };
+  if (!c.token || !c.pageId) {
+    throw new ApiError('not_connected', ACCOUNT ? `The Meta account "${ACCOUNT}" is not connected; call connectMeta with that account first`
+      : 'Meta is not connected yet; run connectMeta() (see the FAQ)', ACCOUNT ? { retry: false } : undefined);
+  }
   if (needIg && !c.igId) throw new ApiError('not_connected', 'No Instagram professional account is linked to the Facebook Page; link one, then run connectMeta() again');
   return c;
 }
@@ -1490,7 +1522,7 @@ function runQueue_() {
 
 function runJob_(job, started) {
   const adapter = adapterFor_(job.platform);
-  YT_ACCOUNT = (job.platform === 'youtube' && job.post && job.post.account) || ''; // each job works as its own channel
+  ACCOUNT = (job.post && job.post.account) || ''; // each job works as its own channel or Page
   const steps = adapter.steps(job.post);
   job.status = 'running';
   job.notBefore = null;
@@ -1555,6 +1587,7 @@ const ROUTES = {
   reply: { write: true, fn: reply_ },
   publish: { write: true, fn: publish_ },
   connectYouTube: { write: true, admin: true, fn: (req) => ({ url: connectYouTube(req.account || ''), account: req.account || null }) },
+  connectMeta: { write: true, admin: true, fn: (req) => ({ url: connectMeta(req.account || '', req.match || ''), account: req.account || null }) },
   get: { fn: (req) => ({ job: presentJob_(jobByIdOrKey_(req)) }) },
   list: { fn: list_ },
   retry: { write: true, fn: retry_ },
@@ -1574,7 +1607,7 @@ function handle_(e, method) {
     if (route.write && method !== 'POST') throw new ApiError('method_not_allowed', `${req.action} needs POST`);
     const caller = route.auth === false ? null : authenticate_(req.token);
     if (route.admin && !caller.admin) throw new ApiError('forbidden', 'This action needs an admin token.');
-    YT_ACCOUNT = ytAccountName_(req.account);
+    ACCOUNT = accountName_(req.account);
     return json_(Object.assign({ ok: true }, route.fn(req, caller)));
   } catch (err) {
     if (err instanceof ApiError) {
@@ -1705,9 +1738,13 @@ function publish_(req, caller) {
   const adapter = adapterFor_(req.platform);
   const now = new Date();
   const post = adapter.validate(req, now);
-  if (adapter.name === 'youtube' && YT_ACCOUNT) {
-    if (!ytAccountConnected_(YT_ACCOUNT)) throw new ApiError('not_connected', `The YouTube account "${YT_ACCOUNT}" is not connected; call connectYouTube with that account first`);
-    post.account = YT_ACCOUNT;
+  if (adapter.name === 'youtube' && ACCOUNT) {
+    if (!ytAccountConnected_(ACCOUNT)) throw new ApiError('not_connected', `The YouTube account "${ACCOUNT}" is not connected; call connectYouTube with that account first`);
+    post.account = ACCOUNT;
+  }
+  if ((adapter.name === 'instagram' || adapter.name === 'facebook') && ACCOUNT) {
+    if (!metaConnected_(ACCOUNT)) throw new ApiError('not_connected', `The Meta account "${ACCOUNT}" is not connected; call connectMeta with that account first`);
+    post.account = ACCOUNT;
   }
   const key = optText_(req.key, 'key', 100);
   return withLock_(() => {

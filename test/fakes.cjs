@@ -145,7 +145,7 @@ function fakeMeta(g, u, m, p) {
   if (q.access_token !== 'page-token') return res(400, { error: { code: 190, message: 'Invalid OAuth access token' } });
   if (parts[1] === 'media' && m === 'post') {
     const id = `c${Object.keys(meta.uploads).length + 1}`;
-    meta.uploads[id] = { kind: 'ig', params: q, got: [], polls: 0 };
+    meta.uploads[id] = { kind: 'ig', params: q, igUser: parts[0], got: [], polls: 0 };
     return res(200, { id, uri: `https://rupload.facebook.com/ig-api-upload/v24.0/${id}` });
   }
   if (parts[1] === 'media_publish') {

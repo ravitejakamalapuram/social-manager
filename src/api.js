@@ -18,6 +18,7 @@ const ROUTES = {
   reply: { write: true, fn: reply_ },
   publish: { write: true, fn: publish_ },
   connectYouTube: { write: true, admin: true, fn: (req) => ({ url: connectYouTube(req.account || ''), account: req.account || null }) },
+  connectMeta: { write: true, admin: true, fn: (req) => ({ url: connectMeta(req.account || '', req.match || ''), account: req.account || null }) },
   get: { fn: (req) => ({ job: presentJob_(jobByIdOrKey_(req)) }) },
   list: { fn: list_ },
   retry: { write: true, fn: retry_ },
@@ -37,7 +38,7 @@ function handle_(e, method) {
     if (route.write && method !== 'POST') throw new ApiError('method_not_allowed', `${req.action} needs POST`);
     const caller = route.auth === false ? null : authenticate_(req.token);
     if (route.admin && !caller.admin) throw new ApiError('forbidden', 'This action needs an admin token.');
-    YT_ACCOUNT = ytAccountName_(req.account);
+    ACCOUNT = accountName_(req.account);
     return json_(Object.assign({ ok: true }, route.fn(req, caller)));
   } catch (err) {
     if (err instanceof ApiError) {
@@ -168,9 +169,13 @@ function publish_(req, caller) {
   const adapter = adapterFor_(req.platform);
   const now = new Date();
   const post = adapter.validate(req, now);
-  if (adapter.name === 'youtube' && YT_ACCOUNT) {
-    if (!ytAccountConnected_(YT_ACCOUNT)) throw new ApiError('not_connected', `The YouTube account "${YT_ACCOUNT}" is not connected; call connectYouTube with that account first`);
-    post.account = YT_ACCOUNT;
+  if (adapter.name === 'youtube' && ACCOUNT) {
+    if (!ytAccountConnected_(ACCOUNT)) throw new ApiError('not_connected', `The YouTube account "${ACCOUNT}" is not connected; call connectYouTube with that account first`);
+    post.account = ACCOUNT;
+  }
+  if ((adapter.name === 'instagram' || adapter.name === 'facebook') && ACCOUNT) {
+    if (!metaConnected_(ACCOUNT)) throw new ApiError('not_connected', `The Meta account "${ACCOUNT}" is not connected; call connectMeta with that account first`);
+    post.account = ACCOUNT;
   }
   const key = optText_(req.key, 'key', 100);
   return withLock_(() => {

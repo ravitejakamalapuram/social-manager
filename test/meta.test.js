@@ -235,3 +235,35 @@ test('worker: a job waiting on Instagram lets the jobs behind it run first', () 
   assert.equal(waiting.status, 'queued');
   assert.ok(waiting.notBefore);
 });
+
+test('a second Page is a Meta account with its own sign-in; the main one is untouched', () => {
+  const t = setup();
+  const p = (extra) => t.call('POST', Object.assign({ action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } }, extra));
+  assert.equal(p({ account: 'Bad Name' }).error.code, 'invalid');
+  assert.equal(p({ account: 'chinni' }).error.code, 'not_connected');
+  Object.assign(t.store, { META_PAGE_TOKEN_CHINNI: 'page-token', META_PAGE_ID_CHINNI: 'page2', META_IG_ID_CHINNI: 'ig2' });
+  const q = p({ account: 'chinni', key: 'k-chinni' });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job.status, 'done');
+  assert.equal(t.google.meta.uploads.c1.igUser, 'ig2');
+  const main = p({ key: 'k-main' });
+  runAll(t);
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: main.job.id }).job.status, 'done');
+  assert.equal(t.google.meta.uploads.c2.igUser, 'ig1');
+});
+
+test('connectMeta picks the Page by match, else the one it had; an extra account never guesses between Pages', () => {
+  const t = setup();
+  const pages = [
+    { id: 'page1', name: 'How To', instagram_business_account: { id: 'ig1', username: 'howto' } },
+    { id: 'page2', name: 'Chinni Slokalu', instagram_business_account: { id: 'ig2', username: 'chinnislokalu' } },
+  ];
+  t.run(`PAGES = ${JSON.stringify(pages)}`);
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '@ChinniSlokalu', null).id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', 'chinni slokalu', null).id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '', 'page2').id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '', null)`), null);
+  assert.equal(t.run(`pickMetaPage_(PAGES, '', '', 'page1').id`), 'page1');
+  assert.equal(t.run(`pickMetaPage_(PAGES, '', '', null).id`), 'page1');
+});
