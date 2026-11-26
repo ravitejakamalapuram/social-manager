@@ -254,6 +254,7 @@ Leave `account` out and the call uses the main channel, as before. A publish to 
 ### Can it post to more than one Instagram account or Facebook Page?
 Yes, the same way as YouTube. The first Page (with its Instagram account) is the main one; each extra Page is an "account" with a short name, like `second`. Each Instagram account must be professional and linked to its own Page.
 1. POST `{"action":"connectMeta","token":"<admin token>","account":"second","match":"@second_insta"}`. It returns a `url`, valid for 10 minutes. `match` is the Page's name or id, or its Instagram @username; it picks the Page when the sign-in shares more than one, and an extra account never guesses without it.
+   Without an admin token: in the editor, add the Script Properties `META_CONNECT_ACCOUNT` (the name) and `META_CONNECT_MATCH` (the @username), run `connectMetaAccount` and take the link from the log.
 2. Open the link signed in to Facebook as the app's admin. Tick every Page the script posts to, the main one too, so its access stays, and press Continue.
 3. Add `"account":"second"` to any Instagram or Facebook call: `publish`, `channel`, `stats`, `comments`, `reply`.
 Leave `account` out and the call uses the main Page, as before. A publish to an account that is not connected fails at once with `not_connected`. Each Instagram account has its own 50 posts a day.

@@ -325,3 +325,13 @@ test('connectMeta picks the Page by match, else the one it had; an extra account
   assert.equal(t.run(`pickMetaPage_(PAGES, '', '', null).id`), 'page1'); // first connect: nothing stored yet
   assert.equal(t.run(`pickMetaPage_(PAGES, '', '', 'gone')`), null); // never switch the main Page silently
 });
+
+test('connectMetaAccount reads the account and match from Script Properties, for the editor', () => {
+  const t = setup();
+  t.run('connectMeta = (a, m) => [a, m].join("|")');
+  assert.throws(() => t.run('connectMetaAccount()'), /META_CONNECT_ACCOUNT/);
+  Object.assign(t.store, { META_CONNECT_ACCOUNT: 'second', META_CONNECT_MATCH: '@second_insta' });
+  assert.equal(t.run('connectMetaAccount()'), 'second|@second_insta');
+  delete t.store.META_CONNECT_MATCH;
+  assert.equal(t.run('connectMetaAccount()'), 'second|');
+});
