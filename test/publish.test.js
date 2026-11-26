@@ -192,3 +192,28 @@ test('platforms lists each platform with its limits', () => {
   assert.deepEqual(r.limits.youtube, { title: 100, descriptionBytes: 5000, tagsTotal: 500 });
   assert.equal(r.limits.instagram.hashtags, 5);
 });
+
+test('firstComment: posted once under a public upload; a refusal is a warning, not a failed job', () => {
+  const t = setup();
+  const q = t.call('POST', post({ token: t.admin, privacy: 'public', firstComment: 'What would you ask a tide?' }));
+  assert.equal(q.ok, true, JSON.stringify(q));
+  for (let i = 0; i < 6; i++) t.call('POST', { action: 'run', token: t.admin });
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.equal(t.google.firstComments.length, 1);
+  assert.equal(t.google.firstComments[0].topLevelComment.snippet.textOriginal, 'What would you ask a tide?');
+  assert.equal(t.google.firstComments[0].videoId, job.result.videoId);
+
+  t.google.noComments = true;
+  const q2 = t.call('POST', post({ token: t.admin, privacy: 'public', firstComment: 'Second' }));
+  for (let i = 0; i < 6; i++) t.call('POST', { action: 'run', token: t.admin });
+  const job2 = t.call('GET', { action: 'get', token: t.admin, id: q2.job.id }).job;
+  assert.equal(job2.status, 'done', JSON.stringify(job2));
+  assert.match(job2.result.warnings.join(' '), /first comment/);
+  assert.equal(t.google.firstComments.length, 1);
+});
+
+test('firstComment: refused on a scheduled video', () => {
+  const t = setup();
+  assert.match(t.call('POST', post({ token: t.admin, publishAt: future(), firstComment: 'x' })).error.message, /scheduled video/);
+});

@@ -29,7 +29,10 @@ function ytAccountConnected_(account) {
   return !account || !!props_().getProperty(accountKey_('YT_REFRESH_TOKEN', account));
 }
 
-const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl'];
+// yt-analytics.readonly is for engaged views in stats. An account connected before it was added keeps working;
+// it gets engaged views after connectYouTube is run for it again.
+const YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl',
+  'https://www.googleapis.com/auth/yt-analytics.readonly'];
 
 /** Logs the sign-in link. Open it, pick the channel, press Allow. With a name, it connects that extra account. */
 function connectYouTube(account) {

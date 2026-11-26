@@ -91,7 +91,17 @@ function fakeGoogle() {
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
     if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
+    if (u.pathname === '/youtube/v3/commentThreads' && m === 'post') {
+      if (g.noComments) return res(403, { error: { code: 403, message: 'comments are off', errors: [{ reason: 'commentsDisabled' }] } });
+      (g.firstComments = g.firstComments || []).push(JSON.parse(p.payload).snippet);
+      return res(201, { id: 't1' });
+    }
     if (u.pathname === '/youtube/v3/commentThreads') return res(200, { items: g.threads || [] });
+    if (u.hostname === 'youtubeanalytics.googleapis.com') {
+      g.analyticsAuth = (p.headers || {}).Authorization;
+      return g.noAnalytics ? res(403, { error: { code: 403, message: 'Insufficient Permission', errors: [{ reason: 'insufficientPermissions' }] } })
+        : res(200, { columnHeaders: [], rows: g.engaged || [] });
+    }
     if (u.pathname === '/youtube/v3/comments' && m === 'get') return res(200, { items: g.ytReplies || [] });
     if (u.pathname === '/youtube/v3/comments') {
       const sn = JSON.parse(p.payload).snippet;
@@ -159,6 +169,11 @@ function fakeMeta(g, u, m, p) {
     return res(200, { video_id: id, upload_url: `https://rupload.facebook.com/video-upload/v24.0/${id}` });
   }
   if (parts[1] === 'video_reels' && q.upload_phase === 'finish') { meta.uploads[q.video_id].finish = q; return res(200, { success: true }); }
+  if (parts[1] === 'thumbnails') {
+    if (meta.noCover) return res(400, { error: { code: 100, message: 'Invalid parameter' } });
+    (meta.covers = meta.covers || []).push({ video: parts[0], preferred: p.payload.is_preferred, bytes: p.payload.source.getBytes(), mime: p.payload.source.mime });
+    return res(200, { success: true });
+  }
   if (parts[1] === 'comments' || parts[1] === 'replies') {
     meta.comments = meta.comments || {};
     const list = meta.comments[parts[0]] || [];
@@ -208,7 +223,7 @@ function load() {
       computeDigest: (alg, s) => [...crypto.createHash('sha256').update(s, 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b)),
       getUuid: () => crypto.randomUUID(),
       sleep: () => {},
-      newBlob: (str) => ({ getBytes: () => [...Buffer.from(str, 'utf8')] }),
+      newBlob: (data, mime, name) => ({ getBytes: () => (typeof data === 'string' ? [...Buffer.from(data, 'utf8')] : data), mime, name }),
     },
   });
   for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'deploy', 'api']) {

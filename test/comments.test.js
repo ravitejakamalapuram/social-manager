@@ -40,7 +40,19 @@ test('stats: YouTube returns subscribers, channel views and each upload\'s numbe
   assert.equal(r.ok, true);
   assert.equal(r.followers, 120);
   assert.equal(r.channelViews, 5000);
-  assert.deepEqual(r.posts, [{ url: 'https://youtu.be/v9', title: 'Lasers', at: '2026-11-20T08:00:00Z', likes: 30, comments: 2, views: 900, reach: null }]);
+  assert.deepEqual(r.posts, [{ url: 'https://youtu.be/v9', title: 'Lasers', at: '2026-11-20T08:00:00Z', likes: 30, comments: 2, views: 900, reach: null, engagedViews: null }]);
+});
+
+test('stats: YouTube adds engaged views from Analytics, and still answers when Analytics refuses', () => {
+  const { call, admin, google } = load();
+  google.videos.v9 = { id: 'v9', snippet: { title: 'Lasers', publishedAt: '2026-11-20T08:00:00Z' }, status: {}, statistics: { viewCount: '900', likeCount: '30', commentCount: '2' } };
+  google.engaged = [['v9', 210], ['other', 5]];
+  assert.equal(call('GET', { action: 'stats', token: admin, platform: 'youtube' }).posts[0].engagedViews, 210);
+  google.noAnalytics = true;
+  const r = call('GET', { action: 'stats', token: admin, platform: 'youtube' });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.posts[0].engagedViews, null);
+  assert.equal(r.posts[0].views, 900);
 });
 
 function metaLoad() {

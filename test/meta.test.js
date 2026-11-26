@@ -30,6 +30,18 @@ test('instagram: container, chunked upload, waits for processing, publishes once
   assert.equal(t.google.meta.published.length, 1);
 });
 
+test('instagram: firstComment is posted under the new Reel, and hashtags in it are refused', () => {
+  const t = setup();
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides', firstComment: 'What would you ask a tide?' });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(t.google.meta.replies, [{ to: job.result.mediaId, text: 'What would you ask a tide?' }]);
+  const bad = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides', firstComment: 'Nice #tides' });
+  assert.match(bad.error.message, /hashtags/);
+});
+
 test('instagram: coverUrl goes to Instagram as cover_url; a non-https cover is refused', () => {
   const t = setup();
   const six = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides #a #b #c #d #e #f' });
@@ -74,6 +86,24 @@ test('facebook: reel upload, finish with description, reads back the link', () =
   assert.deepEqual(r.got, t.google.files.vid.bytes);
   assert.equal(r.finish.video_state, 'PUBLISHED');
   assert.equal(r.finish.description, 'How tides work');
+});
+
+test('facebook: thumbnail becomes the Reel cover; a refusal is a warning and the Reel still posts', () => {
+  const t = setup();
+  t.google.files.img = { name: 'a.jpg', mime: 'image/jpeg', bytes: [1, 2, 3] };
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides', thumbnail: { driveFileId: 'img' } });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(t.google.meta.covers, [{ video: job.result.videoId, preferred: 'true', bytes: [1, 2, 3], mime: 'image/jpeg' }]);
+
+  t.google.meta.noCover = true;
+  const q2 = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides', thumbnail: { driveFileId: 'img' } });
+  runAll(t);
+  const job2 = t.call('GET', { action: 'get', token: t.admin, id: q2.job.id }).job;
+  assert.equal(job2.status, 'done', JSON.stringify(job2));
+  assert.match(job2.result.warnings.join(' '), /cover/);
 });
 
 test('facebook: scheduled and draft states', () => {
