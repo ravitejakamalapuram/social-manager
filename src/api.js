@@ -116,7 +116,7 @@ function listTokens_() {
 // ---------- jobs ----------
 
 function health_() {
-  return { service: 'social-manager', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
+  return { service: 'social-media-publisher', version: API_VERSION, platforms: Object.keys(platforms_()), time: new Date().toISOString() };
 }
 
 /** Followers and the newest posts' numbers on one platform, for platforms whose adapter has stats(). */

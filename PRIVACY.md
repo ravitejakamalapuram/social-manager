@@ -2,11 +2,11 @@
 
 Last updated: 15 November 2026
 
-Social Manager is a personal tool. Its owner runs it on their own Google account to post their own videos to their own YouTube channel, Instagram account and Facebook Page. It has no other users.
+Social Media Publisher is a personal tool. Its owner runs it on their own Google account to post their own videos to their own YouTube channel, Instagram account and Facebook Page. It has no other users.
 
 ## YouTube API Services
 
-Social Manager uses YouTube API Services. By using it you agree to be bound by the YouTube Terms of Service: https://www.youtube.com/t/terms. Google's privacy policy applies to the data YouTube handles: https://policies.google.com/privacy.
+Social Media Publisher uses YouTube API Services. By using it you agree to be bound by the YouTube Terms of Service: https://www.youtube.com/t/terms. Google's privacy policy applies to the data YouTube handles: https://policies.google.com/privacy.
 
 ## What it accesses and why
 
@@ -18,16 +18,16 @@ Social Manager uses YouTube API Services. By using it you agree to be bound by t
 ## Storage and sharing
 
 - The YouTube sign-in token and the job log are stored only in the owner's own Google account (Apps Script properties and a Google Sheet). No other server holds them.
-- Social Manager shares no data with anyone, sells nothing, shows no ads and uses no cookies or tracking.
+- Social Media Publisher shares no data with anyone, sells nothing, shows no ads and uses no cookies or tracking.
 
 ## Deleting data and revoking access
 
-- Revoke Social Manager's access at any time at https://security.google.com/settings/security/permissions. After that it can no longer reach YouTube or Drive.
+- Revoke Social Media Publisher's access at any time at https://security.google.com/settings/security/permissions. After that it can no longer reach YouTube or Drive.
 - Remove its Meta access at any time in Facebook Settings → Business integrations. After that it can no longer reach the Page or the Instagram account.
-- Delete the stored token and the job log by deleting the Apps Script project and the "Social Manager" Sheet from Google Drive. Nothing is kept anywhere else.
+- Delete the stored token and the job log by deleting the Apps Script project and the "Social Media Publisher" Sheet (named "Social Manager" on older installs) from Google Drive. Nothing is kept anywhere else.
 
-Social Manager's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+Social Media Publisher's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
 
 ## Contact
 
-Open an issue at https://github.com/ravitejakamalapuram/social-manager/issues.
+Open an issue at https://github.com/ravitejakamalapuram/social-media-publisher/issues.

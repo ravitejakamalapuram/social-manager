@@ -1,5 +1,5 @@
 /**
- * Jobs live in the "Jobs" tab of the Social Manager spreadsheet, one row each, so the owner can read them.
+ * Jobs live in the "Jobs" tab of the Social Media Publisher spreadsheet, one row each, so the owner can read them.
  */
 
 const JOB_COLS = ['id', 'key', 'platform', 'status', 'title', 'attempts', 'notBefore', 'createdAt', 'updatedAt', 'caller', 'result', 'error', 'post', 'state'];
