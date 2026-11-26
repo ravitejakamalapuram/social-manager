@@ -240,9 +240,9 @@ test('a second Page is a Meta account with its own sign-in; the main one is unto
   const t = setup();
   const p = (extra) => t.call('POST', Object.assign({ action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' } }, extra));
   assert.equal(p({ account: 'Bad Name' }).error.code, 'invalid');
-  assert.equal(p({ account: 'chinni' }).error.code, 'not_connected');
-  Object.assign(t.store, { META_PAGE_TOKEN_CHINNI: 'page-token', META_PAGE_ID_CHINNI: 'page2', META_IG_ID_CHINNI: 'ig2' });
-  const q = p({ account: 'chinni', key: 'k-chinni' });
+  assert.equal(p({ account: 'second' }).error.code, 'not_connected');
+  Object.assign(t.store, { META_PAGE_TOKEN_SECOND: 'page-token', META_PAGE_ID_SECOND: 'page2', META_IG_ID_SECOND: 'ig2' });
+  const q = p({ account: 'second', key: 'k-second' });
   assert.equal(q.ok, true, JSON.stringify(q));
   runAll(t);
   assert.equal(t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job.status, 'done');
@@ -257,13 +257,14 @@ test('connectMeta picks the Page by match, else the one it had; an extra account
   const t = setup();
   const pages = [
     { id: 'page1', name: 'How To', instagram_business_account: { id: 'ig1', username: 'howto' } },
-    { id: 'page2', name: 'Chinni Slokalu', instagram_business_account: { id: 'ig2', username: 'chinnislokalu' } },
+    { id: 'page2', name: 'Second Page', instagram_business_account: { id: 'ig2', username: 'second_insta' } },
   ];
   t.run(`PAGES = ${JSON.stringify(pages)}`);
-  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '@ChinniSlokalu', null).id`), 'page2');
-  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', 'chinni slokalu', null).id`), 'page2');
-  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '', 'page2').id`), 'page2');
-  assert.equal(t.run(`pickMetaPage_(PAGES, 'chinni', '', null)`), null);
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'second', '@Second_Insta', null).id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'second', 'second page', null).id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'second', '', 'page2').id`), 'page2');
+  assert.equal(t.run(`pickMetaPage_(PAGES, 'second', '', null)`), null);
   assert.equal(t.run(`pickMetaPage_(PAGES, '', '', 'page1').id`), 'page1');
-  assert.equal(t.run(`pickMetaPage_(PAGES, '', '', null).id`), 'page1');
+  assert.equal(t.run(`pickMetaPage_(PAGES, '', '', null).id`), 'page1'); // first connect: nothing stored yet
+  assert.equal(t.run(`pickMetaPage_(PAGES, '', '', 'gone')`), null); // never switch the main Page silently
 });

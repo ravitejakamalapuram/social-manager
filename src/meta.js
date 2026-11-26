@@ -43,14 +43,19 @@ function connectMeta(account, match) {
   return url;
 }
 
-/** The Page the sign-in shared that this account should use: match first, then the one it had, then (main account only) the first. */
+/**
+ * The Page the sign-in shared that this account should use: match first, then the one it had. With nothing
+ * stored yet, the main account takes the first Page and an extra one takes the only Page; otherwise null.
+ */
 function pickMetaPage_(pages, account, match, current) {
   const m = String(match || '').replace(/^@/, '').toLowerCase();
   if (m) return pages.find((x) => x.id === m || String(x.name || '').toLowerCase() === m
     || (x.instagram_business_account && String(x.instagram_business_account.username || '').toLowerCase() === m)) || null;
   const had = pages.find((x) => x.id === current);
   if (had) return had;
-  return account ? (pages.length === 1 ? pages[0] : null) : pages[0] || null;
+  if (current) return null; // its Page wasn't shared: never switch to another one silently
+  if (account && pages.length > 1) return null; // an extra account never guesses between Pages
+  return pages[0];
 }
 
 function metaCallback(req) {
@@ -73,7 +78,10 @@ function metaCallback(req) {
     const ig = page.instagram_business_account;
     if (ig) p.setProperty(accountKey_('META_IG_ID'), ig.id); else p.deleteProperty(accountKey_('META_IG_ID'));
     const igText = ig ? `Instagram: @${ig.username}.` : 'No Instagram professional account is linked to this Page, so Instagram posts will fail until one is.';
-    return HtmlService.createHtmlOutput(`Connected${ACCOUNT ? ` as the account "${ACCOUNT}"` : ''}. Facebook Page: ${page.name}. ${igText} You can close this tab.`);
+    const mainId = p.getProperty('META_PAGE_ID');
+    const mainText = ACCOUNT && mainId && !pages.some((x) => x.id === mainId)
+      ? ' Warning: the main Page was not ticked, so Meta may stop its posts. Run connectMeta again and tick every Page.' : '';
+    return HtmlService.createHtmlOutput(`Connected${ACCOUNT ? ` as the account "${ACCOUNT}"` : ''}. Facebook Page: ${page.name}. ${igText}${mainText} You can close this tab.`);
   } catch (err) {
     return HtmlService.createHtmlOutput(`Sign-in failed: ${err.message}`);
   }
