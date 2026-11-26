@@ -1,6 +1,6 @@
 # social-media-publisher
 
-Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Media Publisher does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels, Facebook Page Reels and LinkedIn.
+Post videos to social platforms from one API call, with no browser. Put the video in Google Drive, send the title, description, tags, thumbnail, captions, playlist and publish time, and Social Media Publisher does the rest. It runs free on your Google account, with nothing to host. It posts to YouTube, Instagram Reels, Facebook Page Reels, Threads and LinkedIn.
 
 ```
  Claude tasks / scripts / curl
@@ -9,14 +9,14 @@ Post videos to social platforms from one API call, with no browser. Put the vide
    Apps Script web app (this repo) ──► "Social Media Publisher" Sheet: one row per job
               │  every 5 min: work the queue
               ▼
-   Drive (read the files) ──► one adapter per platform: YouTube, Instagram, Facebook, LinkedIn
+   Drive (read the files) ──► one adapter per platform: YouTube, Instagram, Facebook, Threads, LinkedIn
 ```
 
 **New here, or an AI agent? Read [docs/FAQ.md](docs/FAQ.md) first.** It has every action, field and error.
 
 ## What it does
 
-- **Posts** a video from Drive to YouTube (title, description, tags, thumbnail, captions, playlist, scheduled publish), Instagram Reels, Facebook Page Reels and LinkedIn (personal profile). Each post is a queued job that resumes from the failed step on `retry`.
+- **Posts** a video from Drive to YouTube (title, description, tags, thumbnail, captions, playlist, scheduled publish), Instagram Reels, Facebook Page Reels, Threads and LinkedIn (personal profile). Each post is a queued job that resumes from the failed step on `retry`.
 - **Reads numbers**: `stats` returns followers and the newest posts' views, likes and comments for YouTube, Instagram and Facebook.
 - **Handles comments**: `comments` lists the newest comments, `reply` answers one (a repeated reply is not posted twice).
 - **Several YouTube channels**: connect extra channels as named accounts and add `"account": "<name>"` to any YouTube call.
@@ -34,7 +34,7 @@ curl -sL "$SOCIAL_URL?action=stats&platform=instagram&token=$T"
 
 - `src/api.js`: the web app and its actions.
 - `src/worker.js`: runs queued jobs step by step and saves progress after each one.
-- `src/youtube.js`, `src/instagram.js`, `src/facebook.js`, `src/linkedin.js`: one adapter per platform (`src/meta.js` and `src/youtube-auth.js` hold their sign-in helpers). A new platform is a new file like them, added to `platforms_()` in `src/core.js`.
+- `src/youtube.js`, `src/instagram.js`, `src/facebook.js`, `src/threads.js`, `src/linkedin.js`: one adapter per platform (`src/meta.js` and `src/youtube-auth.js` hold their sign-in helpers). A new platform is a new file like them, added to `platforms_()` in `src/core.js`.
 - `src/deploy.js`: the self-update. GitHub Actions triggers it on every merge to `main` (`.github/workflows/deploy.yml`), and an hourly trigger is the fallback.
 - `src/google.js`: Drive and Google API helpers. `src/store.js`: the jobs sheet. `src/setup.js`: the one-time setup and tokens.
 - `dist/Code.js`: the bundle the live script runs. Rebuild and commit it with every change.
