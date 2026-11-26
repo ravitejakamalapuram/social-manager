@@ -45,13 +45,15 @@ test('threads: a container that fails is made again', () => {
   assert.deepEqual(t.google.th.published, ['tc2']);
 });
 
-test('threads: checks the link, the 500 limit with emojis as bytes, and one hashtag', () => {
+test('threads: checks the link and the 500 limit with emojis as bytes', () => {
   const t = setup();
   assert.match(post(t, { video: { driveFileId: 'vid' } }).error.message, /public link/);
-  assert.match(post(t, { text: '#a #b' }).error.message, /one topic tag/);
+  assert.equal(post(t, { text: '#a #b' }).ok, true); // Threads uses the first as the topic tag
   assert.equal(post(t, { text: 'a'.repeat(500) }).ok, true);
   assert.match(post(t, { text: 'a'.repeat(497) + '🌊' }).error.message, /501 characters/);
   assert.equal(post(t, { text: 'అ'.repeat(500) }).ok, true);
+  assert.match(post(t, { text: 'a'.repeat(498) + '⏰' }).error.message, /501 characters/);
+  assert.equal(post(t, { text: 'a'.repeat(499) + '\u{20000}' }).ok, true);
   const limits = t.call('GET', { action: 'platforms', token: t.admin }).limits.threads;
   assert.equal(limits.text, 500);
 });

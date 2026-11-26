@@ -21,7 +21,7 @@ let THREADS_PROCESS_MS = 20 * 60 * 1000;
 
 const Threads = {
   name: 'threads',
-  /** text counts emojis as their UTF-8 bytes (Threads' rule); one topic tag (hashtag) per post. */
+  /** text counts emojis as their UTF-8 bytes (Threads' rule); only the first hashtag becomes the post's topic tag. */
   limits: { text: 500, hashtags: 1, title: 100 },
 
   validate(p, now) {
@@ -33,8 +33,6 @@ const Threads = {
     if (text !== undefined && text !== null && typeof text !== 'string') throw new ApiError('invalid', 'text must be text');
     const len = threadsLength_(text || '');
     if (len > Threads.limits.text) throw new ApiError('invalid', `text is ${len} characters (emojis count as their UTF-8 bytes); the limit is ${Threads.limits.text}`);
-    const tags = (text || '').match(/(?<!\S)#[^\s#]+/g) || [];
-    if (tags.length > Threads.limits.hashtags) throw new ApiError('invalid', `text has ${tags.length} hashtags; Threads takes one topic tag per post`);
     return {
       video: { url: v.url }, text: text || '',
       title: optText_(p.title, 'title', Threads.limits.title) || (text || '').split('\n')[0].slice(0, Threads.limits.title),
@@ -77,11 +75,13 @@ const Threads = {
 };
 
 /** Threads' length rule: emojis count as their UTF-8 bytes, every other character as one. */
+const THREADS_EMOJI = [[0x1f000, 0x1faff], [0x2190, 0x21ff], [0x2300, 0x23ff], [0x2600, 0x27bf], [0x2900, 0x297f], [0x2b00, 0x2bff],
+  [0x203c], [0x2049], [0x2122], [0x2139], [0x20e3], [0x3030], [0x303d], [0x3297], [0x3299], [0xfe0f], [0x200d]];
 function threadsLength_(s) {
   let n = 0;
   for (const ch of String(s)) {
     const c = ch.codePointAt(0);
-    const emoji = c >= 0x1f000 || (c >= 0x2600 && c <= 0x27bf) || (c >= 0x2b00 && c <= 0x2bff) || c === 0xfe0f || c === 0x200d;
+    const emoji = THREADS_EMOJI.some((r) => c >= r[0] && c <= (r[1] || r[0]));
     n += emoji ? utf8Bytes_(ch) : 1;
   }
   return n;
@@ -118,7 +118,8 @@ function threadsCallback(req) {
     const app = { client_id: p.getProperty('THREADS_APP_ID'), client_secret: p.getProperty('THREADS_APP_SECRET') };
     const short = threadsFetch_('post', `${THREADS}/oauth/access_token`, Object.assign({ grant_type: 'authorization_code', redirect_uri: ytRedirectUri_(), code: prm.code }, app));
     const long = threadsFetch_('get', `${THREADS}/access_token`, { grant_type: 'th_exchange_token', client_secret: app.client_secret, access_token: short.access_token });
-    threadsStore_(long, String(short.user_id));
+    // The id from /me comes back as text; short.user_id is a JSON number that can lose digits.
+    threadsStore_(long, threadsGet_('/me', { fields: 'id', access_token: long.access_token }).id);
     const who = Threads.whoami();
     return HtmlService.createHtmlOutput(`Connected${ACCOUNT ? ` as the account "${ACCOUNT}"` : ''}. Social Media Publisher now posts to Threads as @${who.title}. You can close this tab.`);
   } catch (err) {
@@ -208,17 +209,17 @@ const THREADS_STEPS = {
   },
 
   publish(p, s, ctx, c) {
-    if (s.mediaId) return 'next';
-    s.mediaId = threadsPost_(`/${c.userId}/threads_publish`, { creation_id: s.containerId, access_token: c.token }).id;
+    if (s.videoId) return 'next';
+    s.videoId = threadsPost_(`/${c.userId}/threads_publish`, { creation_id: s.containerId, access_token: c.token }).id;
     ctx.save();
     return 'next';
   },
 
   check(p, s, ctx, c) {
-    const r = threadsGet_(`/${s.mediaId}`, { fields: 'permalink,timestamp', access_token: c.token });
+    const r = threadsGet_(`/${s.videoId}`, { fields: 'permalink,timestamp', access_token: c.token });
     const left = c.expiresAt ? Math.floor((Date.parse(c.expiresAt) - Date.now()) / THREADS_DAY_MS) : null;
     if (left !== null && left < 10) ctx.warn(`The Threads sign-in runs out in ${left} days and could not be renewed; run connectThreads again.`);
-    ctx.result({ mediaId: s.mediaId, url: r.permalink || null, publishedAt: r.timestamp || null });
+    ctx.result({ mediaId: s.videoId, url: r.permalink || null, publishedAt: r.timestamp || null });
     return 'next';
   },
 };

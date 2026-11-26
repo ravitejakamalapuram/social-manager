@@ -197,7 +197,7 @@ No, as long as it only posts to Pages and Instagram accounts of people who have 
 
 ### Where are the text limits?
 
-Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and `{"action":"platforms"}` returns them, so a pipeline that writes titles and captions can read them instead of keeping its own copy. A post over a limit is refused with a message that says which field and by how much; nothing is cut. Today: YouTube title 100 characters, description 5,000 UTF-8 bytes, tags 500 in total; Instagram caption 2,200 characters and 5 hashtags; Facebook title 100 and description 5,000 characters; LinkedIn text 3,000 and title 200 characters; Threads text 500 characters (emojis as UTF-8 bytes) and 1 hashtag.
+Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and `{"action":"platforms"}` returns them, so a pipeline that writes titles and captions can read them instead of keeping its own copy. A post over a limit is refused with a message that says which field and by how much; nothing is cut. Today: YouTube title 100 characters, description 5,000 UTF-8 bytes, tags 500 in total; Instagram caption 2,200 characters and 5 hashtags; Facebook title 100 and description 5,000 characters; LinkedIn text 3,000 and title 200 characters; Threads text 500 characters (emojis as UTF-8 bytes), and only its first hashtag is used.
 
 ## Posting to Threads
 
@@ -205,7 +205,7 @@ Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and
 `{"action":"publish","platform":"threads","video":{"url":"https://..."},"text":"..."}`. Threads only fetches videos from a public link, so `video.url` is required and a Drive file alone is refused. `text` is optional. `publishAt` makes the job wait in the queue until then, as for Instagram. `account` picks an extra profile. The job makes a container, waits until Threads has fetched and processed the video, publishes it and returns its `url`. If Threads cannot fetch the video, the job tries again with a new container, up to three times.
 
 ### What video and text does Threads take?
-MP4 or MOV, up to 5 minutes and 1 GB. Text is up to 500 characters, and emojis count as their UTF-8 bytes (most take 4), so a post with emojis fits fewer letters. One hashtag per post: Threads turns it into the post's topic tag. Posts over these are refused.
+MP4 or MOV, up to 5 minutes and 1 GB. Text is up to 500 characters, and emojis count as their UTF-8 bytes (most take 4), so a post with emojis fits fewer letters. Text over that is refused. Only the first hashtag counts: Threads turns it into the post's topic tag, so use one.
 
 ### How do I connect Threads?
 In the Meta developer app, add the "Access the Threads API" use case with `threads_basic`, `threads_content_publish` and `threads_manage_insights`, put `https://script.google.com/macros/d/<script id>/usercallback` in its Redirect Callback URLs, and add the Threads profile as a Threads tester (accept the invite in the Threads app or on threads.net, Settings, Account, Website permissions). Set the Script Properties `THREADS_APP_ID` and `THREADS_APP_SECRET` from the use case's settings (they differ from `META_APP_ID`). Then run `connectThreads` in the editor (or call the `connectThreads` action), open the link signed in to the profile and press Allow. For an extra profile, set `THREADS_CONNECT_ACCOUNT` and run `connectThreadsAccount`.
