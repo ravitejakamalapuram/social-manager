@@ -149,6 +149,15 @@ test('stats: when Instagram refuses the watch numbers, views and reach still com
   assert.equal(ig.posts[0].shares, null);
 });
 
+test('stats: one post Instagram refuses the watch numbers for does not blank the posts after it', () => {
+  const t = setup();
+  t.google.meta.noWatchFor = ['m7'];
+  const ig = t.call('GET', { action: 'stats', token: t.admin, platform: 'instagram' });
+  assert.equal(ig.posts[0].skipRate, null);
+  assert.equal(ig.posts[0].views, 812);
+  assert.equal(ig.posts[1].skipRate, 61.5);
+});
+
 test('instagram: a ProcessingFailedError on a complete upload still publishes once the container finishes', () => {
   const t = setup();
   t.run('CHUNK_BYTES = 16');

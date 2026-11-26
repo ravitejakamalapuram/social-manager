@@ -49,7 +49,17 @@ const Instagram = {
     const me = metaGet_(`/${c.igId}`, { fields: 'followers_count', access_token: c.token });
     const media = metaGet_(`/${c.igId}/media`, { fields: 'id,permalink,caption,timestamp,like_count,comments_count', limit, access_token: c.token }).data || [];
     const ins = metaInsightsEach_(media, (m) => metaGet_(`/${m.id}/insights`, { metric: 'views,reach', access_token: c.token }));
-    const watch = metaInsightsEach_(media, (m) => metaGet_(`/${m.id}/insights`, { metric: 'reels_skip_rate,ig_reels_avg_watch_time,shares,saved', access_token: c.token }));
+    // One post Instagram refuses (a photo, an old Reel) must not blank the rest, so each is tried by itself;
+    // three refusals in a row mean the metrics are not available at all, and the asking stops.
+    let refused = 0;
+    const watch = media.map((m) => {
+      if (refused >= 3) return null;
+      try {
+        const r = metaGet_(`/${m.id}/insights`, { metric: 'reels_skip_rate,ig_reels_avg_watch_time,shares,saved', access_token: c.token });
+        refused = 0;
+        return r;
+      } catch (e) { refused += 1; console.log(`Instagram watch numbers for ${m.id}: ${e.message}`); return null; }
+    });
     const num = (r, name) => (r ? metaMetric_(r, name) : null);
     return {
       followers: me.followers_count == null ? null : me.followers_count,
