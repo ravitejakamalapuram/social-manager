@@ -92,6 +92,7 @@ function fakeGoogle() {
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
     if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
     if (u.pathname === '/youtube/v3/commentThreads' && m === 'post') {
+      if (g.commentsDown) return res(503, { error: { code: 503, message: 'backend error' } });
       if (g.noComments) return res(403, { error: { code: 403, message: 'comments are off', errors: [{ reason: 'commentsDisabled' }] } });
       (g.firstComments = g.firstComments || []).push(JSON.parse(p.payload).snippet);
       return res(201, { id: 't1' });
@@ -100,7 +101,7 @@ function fakeGoogle() {
     if (u.hostname === 'youtubeanalytics.googleapis.com') {
       g.analyticsAuth = (p.headers || {}).Authorization;
       return g.noAnalytics ? res(403, { error: { code: 403, message: 'Insufficient Permission', errors: [{ reason: 'insufficientPermissions' }] } })
-        : res(200, { columnHeaders: [], rows: g.engaged || [] });
+        : res(200, { columnHeaders: [], rows: (g.engaged || []).filter((r) => (u.searchParams.get('filters') || '').replace('video==', '').split(',').includes(r[0])) });
     }
     if (u.pathname === '/youtube/v3/comments' && m === 'get') return res(200, { items: g.ytReplies || [] });
     if (u.pathname === '/youtube/v3/comments') {
@@ -170,6 +171,7 @@ function fakeMeta(g, u, m, p) {
   }
   if (parts[1] === 'video_reels' && q.upload_phase === 'finish') { meta.uploads[q.video_id].finish = q; return res(200, { success: true }); }
   if (parts[1] === 'thumbnails') {
+    if (meta.coverDown) return res(500, { error: { code: 2, message: 'temporary', is_transient: true } });
     if (meta.noCover) return res(400, { error: { code: 100, message: 'Invalid parameter' } });
     (meta.covers = meta.covers || []).push({ video: parts[0], preferred: p.payload.is_preferred, bytes: p.payload.source.getBytes(), mime: p.payload.source.mime });
     return res(200, { success: true });

@@ -129,7 +129,7 @@ const FB_STEPS = {
    */
   cover(p, s, ctx, c) {
     if (!p.thumbnail || s.coverDone) return 'next';
-    ctx.optional('cover', () => {
+    ctx.afterPublish('cover', () => {
       const m = driveMeta_(p.thumbnail.driveFileId);
       if (Number(m.size) > 10 * 1024 * 1024) throw new ApiError('invalid', 'The cover is over Facebook\'s 10 MB limit');
       const r = UrlFetchApp.fetch(`${GRAPH}/${s.videoId}/thumbnails`, {

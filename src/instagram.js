@@ -23,7 +23,7 @@ const Instagram = {
       throw new ApiError('invalid', 'coverUrl must be a public https link to a JPG');
     }
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
-    const firstComment = optText_(p.firstComment, 'firstComment', 2000);
+    const firstComment = optText_(p.firstComment, 'firstComment', 2200);
     if (firstComment && /(?<!\S)#[^\s#]+/.test(firstComment)) {
       throw new ApiError('invalid', 'firstComment cannot hold hashtags: Instagram counts them with the caption toward its limit of 5');
     }
@@ -250,7 +250,7 @@ const IG_STEPS = {
   /** The account's own first comment under the new Reel (needs instagram_manage_comments). */
   comment(p, s, ctx, c) {
     if (!p.firstComment || s.commentDone) return 'next';
-    ctx.optional('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
+    ctx.afterPublish('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
     s.commentDone = true;
     ctx.save();
     return 'next';

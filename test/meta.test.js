@@ -104,6 +104,12 @@ test('facebook: thumbnail becomes the Reel cover; a refusal is a warning and the
   const job2 = t.call('GET', { action: 'get', token: t.admin, id: q2.job.id }).job;
   assert.equal(job2.status, 'done', JSON.stringify(job2));
   assert.match(job2.result.warnings.join(' '), /cover/);
+
+  t.google.meta.noCover = false;
+  t.google.meta.coverDown = true;
+  const q3 = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides', thumbnail: { driveFileId: 'img' } });
+  runAll(t);
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: q3.job.id }).job.status, 'done');
 });
 
 test('facebook: scheduled and draft states', () => {

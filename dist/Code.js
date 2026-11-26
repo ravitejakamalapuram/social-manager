@@ -270,7 +270,11 @@ const YouTube = {
     }
 
     const firstComment = optText_(p.firstComment, 'firstComment', 2000);
-    if (firstComment && publishAt) throw new ApiError('invalid', 'firstComment cannot go on a scheduled video: it is private until publishAt, and YouTube takes no comments on a private video');
+    if (firstComment && privacy === 'private') {
+      throw new ApiError('invalid', publishAt
+        ? 'firstComment cannot go on a scheduled video: it is private until publishAt, and YouTube takes no comments on a private video'
+        : 'firstComment needs "privacy": "public" or "unlisted": YouTube takes no comments on a private video');
+    }
 
     return {
       firstComment,
@@ -313,7 +317,7 @@ const YouTube = {
     const ids = (googleJson_('get', `${YT}/playlistItems?part=contentDetails&playlistId=${c.contentDetails.relatedPlaylists.uploads}&maxResults=${Math.min(limit, 50)}`).items || [])
       .map((i) => i.contentDetails.videoId);
     const videos = ids.length ? googleJson_('get', `${YT}/videos?part=snippet,statistics&id=${ids.join(',')}`).items || [] : [];
-    const engaged = ids.length ? ytEngagedViews_() : {};
+    const engaged = ids.length ? ytEngagedViews_(ids) : {};
     return {
       followers: st.hiddenSubscriberCount ? null : num(st.subscriberCount),
       channelViews: num(st.viewCount),
@@ -515,7 +519,7 @@ const YT_STEPS = {
   /** The channel's own first comment under a new public video. YouTube has no API to pin it; that stays a manual step. */
   comment(p, s, ctx) {
     if (!p.firstComment || s.commentDone) return 'next';
-    ctx.optional('first comment', () => {
+    ctx.afterPublish('first comment', () => {
       googleJson_('post', `${YT}/commentThreads?part=snippet`, {
         json: { snippet: { videoId: s.videoId, topLevelComment: { snippet: { textOriginal: p.firstComment } } } },
       });
@@ -549,14 +553,14 @@ const YT_STEPS = {
 };
 
 /**
- * {video id: engaged views} for the channel's 200 most viewed videos, from YouTube Analytics ("top videos" report).
+ * {video id: engaged views} for these videos of the channel (at most 200), from YouTube Analytics ("top videos" report).
  * Empty when the account was connected before the analytics permission was asked for, when the YouTube Analytics
  * API is off in the Google Cloud project, or on any other refusal: stats must still return the public numbers.
  */
-function ytEngagedViews_() {
+function ytEngagedViews_(ids) {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const r = googleJson_('get', `${YT_ANALYTICS}?ids=channel%3D%3DMINE&startDate=2005-01-01&endDate=${today}&metrics=engagedViews&dimensions=video&sort=-engagedViews&maxResults=200`);
+    const r = googleJson_('get', `${YT_ANALYTICS}?ids=channel%3D%3DMINE&startDate=2005-01-01&endDate=${today}&metrics=engagedViews&dimensions=video&filters=video%3D%3D${ids.join(',')}&sort=-engagedViews&maxResults=200`);
     const out = {};
     (r.rows || []).forEach((row) => { out[row[0]] = Number(row[1]); });
     return out;
@@ -900,7 +904,7 @@ const Instagram = {
       throw new ApiError('invalid', 'coverUrl must be a public https link to a JPG');
     }
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
-    const firstComment = optText_(p.firstComment, 'firstComment', 2000);
+    const firstComment = optText_(p.firstComment, 'firstComment', 2200);
     if (firstComment && /(?<!\S)#[^\s#]+/.test(firstComment)) {
       throw new ApiError('invalid', 'firstComment cannot hold hashtags: Instagram counts them with the caption toward its limit of 5');
     }
@@ -1127,7 +1131,7 @@ const IG_STEPS = {
   /** The account's own first comment under the new Reel (needs instagram_manage_comments). */
   comment(p, s, ctx, c) {
     if (!p.firstComment || s.commentDone) return 'next';
-    ctx.optional('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
+    ctx.afterPublish('first comment', () => { metaPost_(`/${s.videoId}/comments`, { message: p.firstComment, access_token: c.token }); });
     s.commentDone = true;
     ctx.save();
     return 'next';
@@ -1273,7 +1277,7 @@ const FB_STEPS = {
    */
   cover(p, s, ctx, c) {
     if (!p.thumbnail || s.coverDone) return 'next';
-    ctx.optional('cover', () => {
+    ctx.afterPublish('cover', () => {
       const m = driveMeta_(p.thumbnail.driveFileId);
       if (Number(m.size) > 10 * 1024 * 1024) throw new ApiError('invalid', 'The cover is over Facebook\'s 10 MB limit');
       const r = UrlFetchApp.fetch(`${GRAPH}/${s.videoId}/thumbnails`, {
@@ -1668,6 +1672,13 @@ function runJob_(job, started) {
         if (err && err.details && err.details.retry) throw err;
         ctx.warn(`${what}: ${err && err.message ? err.message : err}`);
       }
+    },
+    /**
+     * For extras that run after the post is already public (first comment, Reel cover): every failure is a warning,
+     * also one a retry might fix. A retry here could fail a job whose post is live, and the caller would post it again.
+     */
+    afterPublish: (what, fn) => {
+      try { fn(); } catch (err) { ctx.warn(`${what}: ${err && err.message ? err.message : err}`); }
     },
   };
   saveJob_(job);

@@ -216,4 +216,15 @@ test('firstComment: posted once under a public upload; a refusal is a warning, n
 test('firstComment: refused on a scheduled video', () => {
   const t = setup();
   assert.match(t.call('POST', post({ token: t.admin, publishAt: future(), firstComment: 'x' })).error.message, /scheduled video/);
+  assert.match(t.call('POST', post({ token: t.admin, firstComment: 'x' })).error.message, /private video/);
+});
+
+test('firstComment: a server error after the video is up is a warning, never a failed job', () => {
+  const t = setup();
+  t.google.commentsDown = true;
+  const q = t.call('POST', post({ token: t.admin, privacy: 'public', firstComment: 'Hello' }));
+  for (let i = 0; i < 8; i++) t.call('POST', { action: 'run', token: t.admin });
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.match(job.result.warnings.join(' '), /first comment/);
 });

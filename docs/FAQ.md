@@ -111,7 +111,7 @@ Only `platform`, `video` and `title` are required. The answer is `{"ok": true, "
 - `aiGenerated`: YouTube's "altered or synthetic content" label. Left out, YouTube's default applies.
 - `thumbnail`: a JPG or PNG in Drive, at most 2 MB. The channel must be phone-verified for custom thumbnails.
 - `captions`: SRT files in Drive, one per language.
-- `firstComment`: a comment the channel posts on its own video right after the upload, up to 2,000 characters. It can't go on a scheduled video (`publishAt`), because a private video takes no comments, and YouTube has no API to pin it. If the comment is refused the video still goes up, with a warning.
+- `firstComment`: a comment the channel posts on its own video right after the upload, up to 2,000 characters. It needs `privacy` `public` or `unlisted`: a private or scheduled (`publishAt`) video takes no comments, and YouTube has no API to pin it. If the comment is refused the video still goes up, with a warning.
 - `playlists`: playlist ids, or exact playlist titles. A title the channel doesn't have yet is made as a new public playlist.
 
 Limits: title 100 characters, description 5,000 bytes (not characters: Telugu and other Indic letters take 3 bytes each and emoji 4, so a Telugu description fits about 1,600 letters), tags 500 in total. Titles and descriptions can't contain `<` or `>`.
