@@ -734,6 +734,17 @@ function connectMeta(account, match) {
 }
 
 /**
+ * The same from the editor, which can't pass arguments: put the account name in the Script Property
+ * META_CONNECT_ACCOUNT (and the Page or @username in META_CONNECT_MATCH), run this, and open the link it logs.
+ */
+function connectMetaAccount() {
+  const p = props_();
+  const name = p.getProperty('META_CONNECT_ACCOUNT');
+  if (!name) throw new Error('Add the script property META_CONNECT_ACCOUNT with the account name first, like "second", and META_CONNECT_MATCH with its @username.');
+  return connectMeta(name, p.getProperty('META_CONNECT_MATCH') || '');
+}
+
+/**
  * The Page the sign-in shared that this account should use: match first, then the one it had. With nothing
  * stored yet, the main account takes the first Page and an extra one takes the only Page; otherwise null.
  */
