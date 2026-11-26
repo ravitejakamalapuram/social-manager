@@ -125,7 +125,7 @@ test('stats: followers and per-post numbers for instagram and facebook', () => {
   const fb = t.call('GET', { action: 'stats', token: t.admin, platform: 'facebook' });
   assert.equal(fb.followers, 3);
   assert.deepEqual(fb.posts[0], { url: 'https://www.facebook.com/reel/v1', title: 'Mangroves', at: '2026-11-15T00:00:00+0000', likes: 9, comments: 1, views: 150, reach: null });
-  assert.equal(t.call('GET', { action: 'stats', token: t.admin, platform: 'youtube' }).error.code, 'invalid');
+  assert.equal(t.call('GET', { action: 'stats', token: t.admin, platform: 'linkedin' }).error.code, 'invalid');
 });
 
 test('stats: without the insights permission, views are null and likes still come back', () => {

@@ -33,6 +33,16 @@ test('reply: posts once, and the same text again returns the first reply', () =>
   assert.equal(call('POST', { action: 'reply', token: admin, platform: 'youtube', text: 'x' }).error.code, 'invalid');
 });
 
+test('stats: YouTube returns subscribers, channel views and each upload\'s numbers', () => {
+  const { call, admin, google } = load();
+  google.videos.v9 = { id: 'v9', snippet: { title: 'Lasers', publishedAt: '2026-11-20T08:00:00Z' }, status: {}, statistics: { viewCount: '900', likeCount: '30', commentCount: '2' } };
+  const r = call('GET', { action: 'stats', token: admin, platform: 'youtube' });
+  assert.equal(r.ok, true);
+  assert.equal(r.followers, 120);
+  assert.equal(r.channelViews, 5000);
+  assert.deepEqual(r.posts, [{ url: 'https://youtu.be/v9', title: 'Lasers', at: '2026-11-20T08:00:00Z', likes: 30, comments: 2, views: 900, reach: null }]);
+});
+
 function metaLoad() {
   const t = load();
   Object.assign(t.store, { META_PAGE_TOKEN: 'page-token', META_PAGE_ID: 'page1', META_IG_ID: 'ig1' });
