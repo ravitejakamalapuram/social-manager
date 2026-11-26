@@ -35,7 +35,7 @@ curl -sL "$SOCIAL_URL?action=stats&platform=instagram&token=$T"
 - `src/api.js`: the web app and its actions.
 - `src/worker.js`: runs queued jobs step by step and saves progress after each one.
 - `src/youtube.js`, `src/instagram.js`, `src/facebook.js`, `src/linkedin.js`: one adapter per platform (`src/meta.js` and `src/youtube-auth.js` hold their sign-in helpers). A new platform is a new file like them, added to `platforms_()` in `src/core.js`.
-- `src/deploy.js`: the hourly self-update from `main`.
+- `src/deploy.js`: the self-update. GitHub Actions triggers it on every merge to `main` (`.github/workflows/deploy.yml`), and an hourly trigger is the fallback.
 - `src/google.js`: Drive and Google API helpers. `src/store.js`: the jobs sheet. `src/setup.js`: the one-time setup and tokens.
 - `dist/Code.js`: the bundle the live script runs. Rebuild and commit it with every change.
 
@@ -48,6 +48,7 @@ curl -sL "$SOCIAL_URL?action=stats&platform=instagram&token=$T"
 5. Run **createTokenForClaude** for the token Claude's jobs use.
 6. Connect the platforms you use (each is a one-time sign-in in a browser): YouTube brand or extra channels with `connectYouTube` / `connectYouTubeAccount`, Instagram and Facebook with `connectMeta` after adding the Meta app's Script Properties. The FAQ has the steps for each.
 7. Check it: `SOCIAL_URL=... SOCIAL_TOKEN=... npm run smoke`.
+8. For deploy on merge, add the repository secrets `PUBLISHER_URL` (the `/exec` URL) and `PUBLISHER_ADMIN_TOKEN` (run **createTokenForGitHub** for it; it can be revoked on its own) in GitHub under Settings > Secrets and variables > Actions.
 
 Script Properties, OAuth consents, the Sheet and the `/exec` URL are not in git; the FAQ answer "What is not in git" lists what to redo on a new account.
 
