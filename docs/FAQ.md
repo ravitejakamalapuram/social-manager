@@ -28,7 +28,7 @@ In this repo. `src/` is the app, `test/` holds the tests, and `docs/` holds this
 ### How does new code go live?
 On merge. Every push to `main` runs the `deploy` GitHub Action, which calls the admin `deploy` action with the merged commit's SHA. The script fetches `dist/Code.js` and the manifest for that commit, updates its own code, makes a new version and points the web app at it. The URL never changes. The Action needs two repository secrets: `PUBLISHER_URL` (the `/exec` URL) and `PUBLISHER_ADMIN_TOKEN` (an admin token; run `createTokenForGitHub` in the editor to make one just for this).
 
-The hourly self-update from `main` stays on as a fallback, so if the Action fails or the secrets are missing, new code still goes live within an hour. To deploy by hand, an admin calls `deploy`, or runs `deployLatest` in the editor. If new code adds a permission, open the editor and run `setup` once to allow it.
+The hourly self-update from `main` stays on as a fallback, so if the Action fails or the secrets are missing, new code still goes live within an hour. To deploy by hand, an admin calls `deploy`, or runs `deployLatest` in the editor (for 15 minutes after an Action deploy, the hourly run and `deployLatest` skip unless forced, so a stale read of `main` can't roll it back). If new code adds a permission, open the editor and run `setup` once to allow it.
 
 ---
 

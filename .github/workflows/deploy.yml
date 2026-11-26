@@ -8,8 +8,11 @@ on:
     branches: [main]
   workflow_dispatch:
 concurrency: deploy
+permissions: {}
 jobs:
   deploy:
+    # A manual run from another branch must not put unmerged code live.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Deploy this commit

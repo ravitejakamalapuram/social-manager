@@ -1776,10 +1776,7 @@ function deployLatest_(force, ref) {
     : ['ravitejakamalapuram/social-media-publisher', 'ravitejakamalapuram/social-manager'];
   const branch = p.getProperty('SOURCE_BRANCH') || 'main';
   const at = ref || branch;
-  // Right after a commit deploy, the branch URL may still serve the previous code; don't roll back to it.
-  if (!ref && !force && Date.now() - Number(p.getProperty('REF_DEPLOYED_AT') || 0) < 15 * 60 * 1000) {
-    return { deployed: false, reason: 'a commit was deployed in the last 15 minutes' };
-  }
+  const label = ref ? ref.slice(0, 7) : branch;
   const raw = (path) => {
     let code = 0;
     for (const repo of repos) {
@@ -1793,21 +1790,30 @@ function deployLatest_(force, ref) {
   const code = raw('dist/Code.js');
   const manifest = raw('src/appsscript.json');
   const hash = sha256Hex_(code + manifest);
-  if (ref) p.setProperty('REF_DEPLOYED_AT', String(Date.now()));
-  if (!force && hash === p.getProperty('DEPLOYED_HASH')) return { deployed: false, reason: 'already on the latest code' };
+  // Right after a commit deploy, the branch URL may still serve the previous code; don't roll back to it.
+  // Checked after the fetches (not before), so a commit deploy that finished while they ran is seen.
+  // No script lock: the job queue uses it, and a deploy holding it would make publish calls busy.
+  if (!ref && !force && Date.now() - Number(p.getProperty('REF_DEPLOYED_AT') || 0) < 15 * 60 * 1000) {
+    return { deployed: false, reason: 'a commit was deployed in the last 15 minutes' };
+  }
+  if (!force && hash === p.getProperty('DEPLOYED_HASH')) {
+    if (ref) p.setProperty('REF_DEPLOYED_AT', String(Date.now()));
+    return { deployed: false, reason: 'already on the latest code' };
+  }
 
   const api = `https://script.googleapis.com/v1/projects/${ScriptApp.getScriptId()}`;
   googleJson_('put', `${api}/content`, {
     json: { files: [{ name: 'Code', type: 'SERVER_JS', source: code }, { name: 'appsscript', type: 'JSON', source: manifest }] },
   });
-  const version = googleJson_('post', `${api}/versions`, { json: { description: `${branch} ${hash.slice(0, 7)}` } });
-  const config = { scriptId: ScriptApp.getScriptId(), versionNumber: version.versionNumber, manifestFileName: 'appsscript', description: `${branch} ${hash.slice(0, 7)}` };
+  const version = googleJson_('post', `${api}/versions`, { json: { description: `${label} ${hash.slice(0, 7)}` } });
+  const config = { scriptId: ScriptApp.getScriptId(), versionNumber: version.versionNumber, manifestFileName: 'appsscript', description: `${label} ${hash.slice(0, 7)}` };
   const web = (googleJson_('get', `${api}/deployments`).deployments || [])
     .find((d) => d.deploymentConfig && d.deploymentConfig.versionNumber && (d.entryPoints || []).some((e) => e.entryPointType === 'WEB_APP'));
   const dep = web
     ? googleJson_('put', `${api}/deployments/${web.deploymentId}`, { json: { deploymentConfig: config } })
     : googleJson_('post', `${api}/deployments`, { json: config });
   p.setProperty('DEPLOYED_HASH', hash);
+  if (ref) p.setProperty('REF_DEPLOYED_AT', String(Date.now()));
   const entry = (dep.entryPoints || []).find((e) => e.entryPointType === 'WEB_APP');
   return { deployed: true, version: version.versionNumber, url: entry && entry.webApp ? entry.webApp.url : null };
 }
