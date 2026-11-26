@@ -19,6 +19,7 @@ const ROUTES = {
   publish: { write: true, fn: publish_ },
   connectYouTube: { write: true, admin: true, fn: (req) => ({ url: connectYouTube(req.account || ''), account: req.account || null }) },
   connectMeta: { write: true, admin: true, fn: (req) => ({ url: connectMeta(req.account || '', req.match || ''), account: req.account || null }) },
+  connectThreads: { write: true, admin: true, fn: (req) => ({ url: connectThreads(req.account || ''), account: req.account || null }) },
   get: { fn: (req) => ({ job: presentJob_(jobByIdOrKey_(req)) }) },
   list: { fn: list_ },
   retry: { write: true, fn: retry_ },
@@ -178,6 +179,10 @@ function publish_(req, caller) {
   }
   if ((adapter.name === 'instagram' || adapter.name === 'facebook') && ACCOUNT) {
     if (!metaConnected_(ACCOUNT)) throw new ApiError('not_connected', `The Meta account "${ACCOUNT}" is not connected; call connectMeta with that account first`);
+    post.account = ACCOUNT;
+  }
+  if (adapter.name === 'threads' && ACCOUNT) {
+    if (!threadsConnected_(ACCOUNT)) throw new ApiError('not_connected', `The Threads account "${ACCOUNT}" is not connected; call connectThreads with that account first`);
     post.account = ACCOUNT;
   }
   const key = optText_(req.key, 'key', 100);

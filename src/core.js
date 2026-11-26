@@ -2,7 +2,7 @@
  * Shared pieces with no Google services in them: errors, ids, input checks and the platform list.
  */
 
-const API_VERSION = '1.1.1';
+const API_VERSION = '1.2.0';
 const NAME_RE = /^[a-z0-9-]{1,40}$/;
 const JOB_STATUSES = ['queued', 'running', 'done', 'failed', 'cancelled'];
 const MAX_ATTEMPTS = 3;
@@ -22,7 +22,7 @@ class ApiError extends Error {
 
 /** Every publishing platform. A new platform is one new file and one line here. */
 function platforms_() {
-  return { youtube: YouTube, instagram: Instagram, facebook: Facebook, linkedin: LinkedIn };
+  return { youtube: YouTube, instagram: Instagram, facebook: Facebook, linkedin: LinkedIn, threads: Threads };
 }
 
 function adapterFor_(name) {

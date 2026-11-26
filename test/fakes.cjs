@@ -90,6 +90,7 @@ function fakeGoogle() {
     if (u.pathname === '/youtube/v3/playlistItems' && m === 'get') return res(200, { items: Object.keys(g.videos).map((id) => ({ contentDetails: { videoId: id } })) });
     if (u.pathname === '/youtube/v3/playlistItems') { g.playlistItems.push(JSON.parse(p.payload).snippet); return res(200, {}); }
     if (u.host === 'api.linkedin.com' || u.host === 'li-upload.example') return fakeLinkedIn(g, u, m, p);
+    if (u.host === 'graph.threads.net') return fakeThreads(g, u, m, p);
     if (u.host === 'graph.facebook.com' || u.host === 'rupload.facebook.com') return fakeMeta(g, u, m, p);
     if (u.pathname === '/youtube/v3/commentThreads' && m === 'post') {
       if (g.commentsDown) return res(503, { error: { code: 503, message: 'backend error' } });
@@ -139,6 +140,29 @@ function fakeLinkedIn(g, u, m, p) {
 }
 
 /** Fake Meta Graph API: Instagram containers and Facebook Page Reels. */
+/** Fake graph.threads.net: containers finish on the second look; g.th.fail makes the next container end in ERROR. */
+function fakeThreads(g, u, m, p) {
+  const th = g.th = g.th || { containers: {}, published: [], refreshed: 0 };
+  const q = m === 'post' ? new URLSearchParams(p.payload) : u.searchParams;
+  const parts = u.pathname.replace('/v1.0/', '').split('/');
+  if (u.pathname === '/refresh_access_token') { th.refreshed++; return res(200, { access_token: 'th-new', expires_in: 5184000 }); }
+  if (parts[1] === 'threads' && m === 'post') {
+    const id = `tc${Object.keys(th.containers).length + 1}`;
+    th.containers[id] = { params: Object.fromEntries(q), polls: 0, fail: !!th.fail };
+    th.fail = false;
+    return res(200, { id });
+  }
+  if (parts[1] === 'threads_publish') { const id = `tm${th.published.length + 1}`; th.published.push(q.get('creation_id')); return res(200, { id }); }
+  if (parts[1] === 'threads') return res(200, { data: [{ id: 'tm1', permalink: 'https://www.threads.net/@howto/post/A', text: 'Tides\nmore', timestamp: '2026-11-26T00:00:00+0000' }] });
+  if (parts[1] === 'threads_insights') return res(200, { data: [{ name: 'followers_count', total_value: { value: 12 } }] });
+  if (parts[1] === 'insights') return res(200, { data: ['views', 'likes', 'replies', 'reposts', 'quotes', 'shares'].map((name, i) => ({ name, values: [{ value: 10 - i }] })) });
+  const c = th.containers[parts[0]];
+  if (c) return res(200, { status: c.fail ? 'ERROR' : c.polls++ < 1 ? 'IN_PROGRESS' : 'FINISHED', error_message: c.fail ? 'FAILED_DOWNLOADING_VIDEO' : undefined });
+  if (parts[0] === 'me') return res(200, { id: 'tu1', username: 'howto' });
+  if (parts[0].startsWith('tm')) return res(200, { permalink: `https://www.threads.net/@howto/post/${parts[0]}`, timestamp: '2026-11-26T00:00:00+0000' });
+  return res(500, { error: { code: 1, message: `unhandled ${m} ${u}` } });
+}
+
 function fakeMeta(g, u, m, p) {
   const meta = g.meta;
   const parts = u.pathname.split('/').filter(Boolean).slice(1); // drop the version
@@ -216,7 +240,7 @@ function load() {
     console: { log() {}, error() {} },
     ScriptApp: { getOAuthToken: () => 'oauth' },
     UrlFetchApp: { fetch: google.fetch },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => store[k] ?? null, setProperty: (k, v) => { store[k] = String(v); }, deleteProperty: (k) => { delete store[k]; } }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => store[k] ?? null, setProperty: (k, v) => { store[k] = String(v); }, deleteProperty: (k) => { delete store[k]; }, setProperties: (o) => { Object.entries(o).forEach(([k, v]) => { store[k] = String(v); }); } }) },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (s) => ({ setMimeType: () => ({ body: s }) }) },
     Utilities: {
@@ -228,7 +252,7 @@ function load() {
       newBlob: (data, mime, name) => ({ getBytes: () => (typeof data === 'string' ? [...Buffer.from(data, 'utf8')] : data), mime, name }),
     },
   });
-  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'store', 'worker', 'deploy', 'api']) {
+  for (const f of ['core', 'google', 'youtube', 'youtube-auth', 'meta', 'instagram', 'facebook', 'linkedin', 'threads', 'store', 'worker', 'deploy', 'api']) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'src', `${f}.js`), 'utf8'), ctx, { filename: `${f}.js` });
   }
   vm.runInContext('WAIT_MS = 0', ctx); // a waiting job is due again at once, so tests don't sit out the wait

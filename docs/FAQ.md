@@ -13,7 +13,7 @@ Social Media Publisher posts your videos to social platforms for you, with no br
 Yes. The repo was renamed from `social-manager` to `social-media-publisher` in November 2026. Nothing about the API, the `/exec` URL or the tokens changed. GitHub redirects the old repo links. An install made before the rename keeps its "Social Manager" Sheet and Apps Script project names, which is fine. If its `SOURCE_REPO` Script Property is set to the old name, change it to `ravitejakamalapuram/social-media-publisher` (or delete it to use the default).
 
 ### Which platforms does it support?
-YouTube, Instagram Reels, Facebook Page Reels and LinkedIn (your personal profile). Each platform is one adapter file, so adding one doesn't change the others.
+YouTube, Instagram Reels, Facebook Page Reels, Threads and LinkedIn (your personal profile). Each platform is one adapter file, so adding one doesn't change the others.
 
 ### What is it built on?
 Free Google services, so there is nothing to host:
@@ -57,7 +57,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | --- | --- |
 | `health` | Is it up? No token needed. |
 | `platforms` | Lists the platforms and each one's text `limits` (see "Where are the text limits?"). |
-| `channel` | Shows which YouTube channel it posts to. Send `"platform": "linkedin"` for the LinkedIn profile and when its sign-in runs out. |
+| `channel` | Shows which YouTube channel it posts to. Send `"platform": "linkedin"` for the LinkedIn profile and when its sign-in runs out, or `"threads"` for the Threads profile. |
 | `publish` | Queues a post. Returns a job. |
 | `get` | One job, by `id` or by your `key`. |
 | `list` | Recent jobs, newest first. Filters: `status`, `platform`, `limit` (max 200). |
@@ -67,6 +67,7 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | `comments`, `reply` | Read the newest comments and answer one. See "How do I read and reply to comments?" |
 | `connectYouTube` | Returns a sign-in link for an extra YouTube channel, by `account` name (admin). |
 | `connectMeta` | Returns a sign-in link for an extra Facebook Page and its Instagram account, by `account` name (admin). |
+| `connectThreads` | Returns a Threads sign-in link, optionally for an extra profile by `account` name (admin). |
 | `run` | Works the queue now instead of waiting for the trigger (admin). |
 | `deploy` | Pulls the latest code from GitHub `main` now (admin). Send `"ref": "<commit SHA>"` to deploy that exact commit, or `"force": true` to redeploy unchanged code. |
 | `createToken`, `revokeToken`, `listTokens` | Manage tokens (admin). |
@@ -196,7 +197,26 @@ No, as long as it only posts to Pages and Instagram accounts of people who have 
 
 ### Where are the text limits?
 
-Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and `{"action":"platforms"}` returns them, so a pipeline that writes titles and captions can read them instead of keeping its own copy. A post over a limit is refused with a message that says which field and by how much; nothing is cut. Today: YouTube title 100 characters, description 5,000 UTF-8 bytes, tags 500 in total; Instagram caption 2,200 characters and 5 hashtags; Facebook title 100 and description 5,000 characters; LinkedIn text 3,000 and title 200 characters.
+Each platform's limits are in its adapter (`limits` in `src/<platform>.js`), and `{"action":"platforms"}` returns them, so a pipeline that writes titles and captions can read them instead of keeping its own copy. A post over a limit is refused with a message that says which field and by how much; nothing is cut. Today: YouTube title 100 characters, description 5,000 UTF-8 bytes, tags 500 in total; Instagram caption 2,200 characters and 5 hashtags; Facebook title 100 and description 5,000 characters; LinkedIn text 3,000 and title 200 characters; Threads text 500 characters (emojis as UTF-8 bytes), and only its first hashtag is used.
+
+## Posting to Threads
+
+### How do I post a video to Threads?
+`{"action":"publish","platform":"threads","video":{"url":"https://..."},"text":"..."}`. Threads only fetches videos from a public link, so `video.url` is required and a Drive file alone is refused. `text` is optional. `publishAt` makes the job wait in the queue until then, as for Instagram. `account` picks an extra profile. The job makes a container, waits until Threads has fetched and processed the video, publishes it and returns its `url`. If Threads cannot fetch the video, the job tries again with a new container, up to three times.
+
+### What video and text does Threads take?
+MP4 or MOV, up to 5 minutes and 1 GB. Text is up to 500 characters, and emojis count as their UTF-8 bytes (most take 4), so a post with emojis fits fewer letters. Text over that is refused. Only the first hashtag counts: Threads turns it into the post's topic tag, so use one.
+
+### How do I connect Threads?
+In the Meta developer app, add the "Access the Threads API" use case with `threads_basic`, `threads_content_publish` and `threads_manage_insights`, put `https://script.google.com/macros/d/<script id>/usercallback` in its Redirect Callback URLs, and add the Threads profile as a Threads tester (accept the invite in the Threads app or on threads.net, Settings, Account, Website permissions). Set the Script Properties `THREADS_APP_ID` and `THREADS_APP_SECRET` from the use case's settings (they differ from `META_APP_ID`). Then run `connectThreads` in the editor (or call the `connectThreads` action), open the link signed in to the profile and press Allow. For an extra profile, set `THREADS_CONNECT_ACCOUNT` and run `connectThreadsAccount`.
+
+### Does the Threads sign-in run out?
+A Threads token lasts 60 days. The publisher renews it by itself whenever it posts or reads stats and the token has under 50 days left, so a profile used at least every few weeks never needs signing in again. If it does run out, posts fail with `not_connected` until `connectThreads` is run again. `{"action":"channel","platform":"threads"}` shows `tokenExpiresAt`.
+
+### Can I read Threads stats?
+Yes. `{"action":"stats","platform":"threads"}` returns `followers` and the newest posts with `views`, `likes`, `comments` (replies), `reposts`, `quotes` and `shares`. Comments and replies through the API are not built yet.
+
+---
 
 ## Limits and setup
 
@@ -243,7 +263,7 @@ See the [README](../README.md#set-up-once).
 
 ### What is not in git, and what do I redo on a new Google account or machine?
 The code, `dist/Code.js` and the two time triggers (`runQueue` every 5 minutes, `deployLatest` hourly, both made by `setup`) are in git. Not in git, so redo them by hand:
-1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID` (and the same with `_<ACCOUNT>` for each extra Page), `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `REF_DEPLOYED_AT`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
+1. **Script Properties** (Project Settings in the editor), names only: `TOKENS` (client tokens), `SHEET_ID`, `SOURCE_REPO` and `SOURCE_BRANCH` (where `deployLatest` pulls code), `META_APP_ID`, `META_APP_SECRET`, `META_CONFIG_ID`, `META_PAGE_ID`, `META_PAGE_TOKEN`, `META_IG_ID` (and the same with `_<ACCOUNT>` for each extra Page), `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, the Threads ones (`THREADS_APP_ID`, `THREADS_APP_SECRET`, then `THREADS_TOKEN`, `THREADS_USER_ID`, `THREADS_EXPIRES_AT`, `THREADS_RENEWED_AT` written by the sign-in), and the LinkedIn ones (`LI_*`, parked). The rest (`DEPLOYED_HASH`, `REF_DEPLOYED_AT`, `WORKER_UNTIL`, `LI_EXPIRES_AT`) the code writes itself. Never write values into the repo.
 2. **The OAuth consents**, which only a person can click: the Meta app login (Instagram and the Page) and the YouTube channel connection. Run `connectYouTubeAccount` for each channel.
 3. **Token expiry**: the Meta Page token lasts about 60 days and Google OAuth apps left in "Testing" mode lose their refresh token after 7 days. Move the Google app to production, and put a calendar reminder to reconnect Meta.
 4. **A new `/exec` URL.** Update `SOCIAL_URL` in the studio repo's GitHub secrets (and `SOCIAL_TOKEN` if you made a new token).
