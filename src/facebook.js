@@ -7,8 +7,8 @@ const FB_STATES = ['published', 'draft'];
 
 const Facebook = {
   name: 'facebook',
-  /** Our own caps: Meta documents no Reel limit, and these leave room. */
-  limits: { title: 100, description: 5000 },
+  /** Text caps are our own (Meta documents none for Reels). seconds: Page Reels published through the API run 3 to 90 s. */
+  limits: { title: 100, description: 5000, seconds: 90 },
 
   validate(p, now) {
     const video = optFile_(p.video, 'video');

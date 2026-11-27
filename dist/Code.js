@@ -181,7 +181,13 @@ function header_(r, name) {
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 
 function driveMeta_(id) {
-  return googleJson_('get', `${DRIVE}/${encodeURIComponent(id)}?fields=name,size,mimeType&supportsAllDrives=true`);
+  return googleJson_('get', `${DRIVE}/${encodeURIComponent(id)}?fields=name,size,mimeType,videoMediaMetadata&supportsAllDrives=true`);
+}
+
+/** A Drive video's length in seconds from Drive's own metadata (no download), or null while Drive has not measured it. */
+function driveVideoSeconds_(id) {
+  const v = driveMeta_(id).videoMediaMetadata;
+  return v && v.durationMillis != null ? Number(v.durationMillis) / 1000 : null;
 }
 
 /** Bytes start..end (inclusive) of a Drive file, so files larger than 50 MB can be read in parts. */
@@ -899,7 +905,7 @@ const firstLine_ = (s) => String(s || '').split('\n')[0].slice(0, 100);
 const Instagram = {
   name: 'instagram',
   /** Caption in characters; hashtags cut from 30 to 5 per post in December 2025. */
-  limits: { caption: 2200, hashtags: 5, title: 100 },
+  limits: { caption: 2200, hashtags: 5, title: 100, seconds: 900 },
 
   validate(p, now) {
     const video = igVideo_(p.video);
@@ -1172,8 +1178,8 @@ const FB_STATES = ['published', 'draft'];
 
 const Facebook = {
   name: 'facebook',
-  /** Our own caps: Meta documents no Reel limit, and these leave room. */
-  limits: { title: 100, description: 5000 },
+  /** Text caps are our own (Meta documents none for Reels). seconds: Page Reels published through the API run 3 to 90 s. */
+  limits: { title: 100, description: 5000, seconds: 90 },
 
   validate(p, now) {
     const video = optFile_(p.video, 'video');
@@ -1573,7 +1579,7 @@ let THREADS_PROCESS_MS = 20 * 60 * 1000;
 const Threads = {
   name: 'threads',
   /** text counts emojis as their UTF-8 bytes (Threads' rule); only the first hashtag becomes the post's topic tag. */
-  limits: { text: 500, hashtags: 1, title: 100 },
+  limits: { text: 500, hashtags: 1, title: 100, seconds: 300 },
 
   validate(p, now) {
     const v = p.video;
@@ -1966,6 +1972,7 @@ function doPost(e) { return handle_(e, 'POST'); }
 const ROUTES = {
   health: { auth: false, fn: health_ },
   platforms: { fn: platformsInfo_ },
+  video: { fn: videoInfo_ },
   channel: { fn: (req) => adapterFor_(req.platform || 'youtube').whoami() },
   stats: { fn: (req) => stats_(req) },
   comments: { fn: (req) => comments_(req) },
@@ -2109,6 +2116,29 @@ function platformsInfo_() {
   return { platforms: Object.keys(all), limits };
 }
 
+/** A Drive video's name, size and length, read from Drive's metadata, so a caller can check lengths without downloading. */
+function videoInfo_(req) {
+  const id = optText_(req.driveFileId, 'driveFileId', 200);
+  if (!id) throw new ApiError('invalid', 'Send driveFileId');
+  const m = driveMeta_(id);
+  const v = m.videoMediaMetadata || {};
+  return { video: { driveFileId: id, name: m.name, size: Number(m.size), seconds: v.durationMillis != null ? Number(v.durationMillis) / 1000 : null } };
+}
+
+/**
+ * Refuses a video longer than the platform takes (the adapter's limits.seconds), using Drive's metadata.
+ * When Drive has not measured the video yet, the post goes ahead and the platform has the last word.
+ */
+function checkVideoLength_(adapter, post) {
+  const max = (adapter.limits || {}).seconds;
+  if (!max || !post.video || !post.video.driveFileId) return;
+  let s = null;
+  try { s = driveVideoSeconds_(post.video.driveFileId); } catch (err) { return; } // Drive busy or the file unreadable: the job's own steps deal with it
+  if (s != null && s > max) {
+    throw new ApiError('invalid', `The video is ${Math.round(s * 10) / 10} s; ${adapter.name} takes at most ${max} s. Send a shorter version.`);
+  }
+}
+
 function jobByIdOrKey_(req) {
   if (req.id) return jobOrThrow_(req.id).job;
   if (req.key) {
@@ -2145,6 +2175,7 @@ function publish_(req, caller) {
       const prior = allJobs_().find((j) => j.key === key && j.status !== 'cancelled');
       if (prior) return { job: presentJob_(prior), existing: true };
     }
+    checkVideoLength_(adapter, post);
     const iso = now.toISOString();
     const job = {
       id: newJobId_(now, Utilities.getUuid().slice(0, 4)), key, platform: adapter.name, status: 'queued',

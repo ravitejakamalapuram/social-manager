@@ -49,7 +49,7 @@ function fakeGoogle() {
     if (u.host === 'www.googleapis.com' && fileId) {
       const f = g.files[decodeURIComponent(fileId)];
       if (!f) return err(404, 'notFound');
-      if (u.searchParams.get('alt') !== 'media') return res(200, { name: f.name, size: String(f.bytes.length), mimeType: f.mime });
+      if (u.searchParams.get('alt') !== 'media') return res(200, Object.assign({ name: f.name, size: String(f.bytes.length), mimeType: f.mime }, f.ms != null ? { videoMediaMetadata: { durationMillis: String(f.ms) } } : {}));
       const range = p.headers.Range;
       if (!range) return res(200, '', {}, f.bytes);
       const [a, b] = range.replace('bytes=', '').split('-').map(Number);

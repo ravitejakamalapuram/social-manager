@@ -58,7 +58,13 @@ function header_(r, name) {
 const DRIVE = 'https://www.googleapis.com/drive/v3/files';
 
 function driveMeta_(id) {
-  return googleJson_('get', `${DRIVE}/${encodeURIComponent(id)}?fields=name,size,mimeType&supportsAllDrives=true`);
+  return googleJson_('get', `${DRIVE}/${encodeURIComponent(id)}?fields=name,size,mimeType,videoMediaMetadata&supportsAllDrives=true`);
+}
+
+/** A Drive video's length in seconds from Drive's own metadata (no download), or null while Drive has not measured it. */
+function driveVideoSeconds_(id) {
+  const v = driveMeta_(id).videoMediaMetadata;
+  return v && v.durationMillis != null ? Number(v.durationMillis) / 1000 : null;
 }
 
 /** Bytes start..end (inclusive) of a Drive file, so files larger than 50 MB can be read in parts. */
