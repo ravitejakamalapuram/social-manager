@@ -27,8 +27,14 @@ const Instagram = {
     if (firstComment && /(?<!\S)#[^\s#]+/.test(firstComment)) {
       throw new ApiError('invalid', 'firstComment cannot hold hashtags: Instagram counts them with the caption toward its limit of 5');
     }
+    let collaborators = p.collaborators === undefined || p.collaborators === null ? [] : p.collaborators;
+    if (!Array.isArray(collaborators) || collaborators.length > 3
+      || !collaborators.every((u) => typeof u === 'string' && /^@?[A-Za-z0-9._]{1,30}$/.test(u))) {
+      throw new ApiError('invalid', 'collaborators must be a list of up to 3 Instagram usernames');
+    }
+    collaborators = collaborators.map((u) => u.replace(/^@/, ''));
     return {
-      firstComment,
+      firstComment, collaborators,
       video, caption, coverAtMs: coverMs, coverUrl, shareToFeed: optBool_(p.shareToFeed, 'shareToFeed') !== false,
       title: optText_(p.title, 'title', Instagram.limits.title) || (caption || '').split('\n')[0].slice(0, Instagram.limits.title),
       notBefore: publishAt,
@@ -155,7 +161,7 @@ const IG_STEPS = {
     const byUrl = !!p.video.url && !s.urlFailed;
     const r = metaPost_(`/${c.igId}/media`, Object.assign({
       media_type: 'REELS', caption: p.caption, share_to_feed: String(p.shareToFeed), thumb_offset: p.coverAtMs, access_token: c.token,
-    }, p.coverUrl ? { cover_url: p.coverUrl } : {}, byUrl ? { video_url: p.video.url } : { upload_type: 'resumable' }));
+    }, p.coverUrl ? { cover_url: p.coverUrl } : {}, (p.collaborators || []).length ? { collaborators: JSON.stringify(p.collaborators) } : {}, byUrl ? { video_url: p.video.url } : { upload_type: 'resumable' }));
     s.containerId = r.id;
     s.byUrl = byUrl;
     s.uploadUrl = byUrl ? null : r.uri || `https://rupload.facebook.com/ig-api-upload/${GRAPH_VERSION}/${r.id}`;
