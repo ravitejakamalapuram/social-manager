@@ -7,7 +7,7 @@
 const Instagram = {
   name: 'instagram',
   /** Caption in characters; hashtags cut from 30 to 5 per post in December 2025. */
-  limits: { caption: 2200, hashtags: 5, title: 100 },
+  limits: { caption: 2200, hashtags: 5, title: 100, seconds: 900 },
 
   validate(p, now) {
     const video = igVideo_(p.video);

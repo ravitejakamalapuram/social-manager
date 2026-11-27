@@ -346,3 +346,21 @@ test('connectMetaAccount reads the account and match from Script Properties, for
   delete t.store.META_CONNECT_MATCH;
   assert.equal(t.run('connectMetaAccount()'), 'second|');
 });
+
+test('video length: each platform takes its own maximum, read from Drive without downloading', () => {
+  const t = setup();
+  t.google.files.long = { name: 'b.mp4', mime: 'video/mp4', bytes: [1, 2, 3], ms: 150000 };
+  const pub = (platform, extra) => t.call('POST', Object.assign({ action: 'publish', token: t.admin, platform, video: { driveFileId: 'long' } }, extra));
+  assert.equal(pub('instagram', { caption: 'A 2.5 minute sloka' }).ok, true); // Instagram takes up to 15 min
+  const fb = pub('facebook', { description: 'A 2.5 minute sloka' });
+  assert.equal(fb.ok, false);
+  assert.match(fb.error.message, /150 s; facebook takes at most 90 s/);
+  const info = t.call('GET', { action: 'video', token: t.admin, driveFileId: 'long' });
+  assert.deepEqual(info.video, { driveFileId: 'long', name: 'b.mp4', size: 3, seconds: 150 });
+  // Not measured by Drive yet: no length, and the post is not refused.
+  assert.equal(t.call('GET', { action: 'video', token: t.admin, driveFileId: 'vid' }).video.seconds, null);
+  assert.equal(pub('facebook', { description: 'x', video: { driveFileId: 'vid' } }).ok, true);
+  const lim = t.call('GET', { action: 'platforms', token: t.admin }).limits;
+  assert.equal(lim.instagram.seconds, 900);
+  assert.equal(lim.facebook.seconds, 90);
+});

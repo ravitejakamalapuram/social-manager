@@ -22,7 +22,7 @@ let THREADS_PROCESS_MS = 20 * 60 * 1000;
 const Threads = {
   name: 'threads',
   /** text counts emojis as their UTF-8 bytes (Threads' rule); only the first hashtag becomes the post's topic tag. */
-  limits: { text: 500, hashtags: 1, title: 100 },
+  limits: { text: 500, hashtags: 1, title: 100, seconds: 300 },
 
   validate(p, now) {
     const v = p.video;

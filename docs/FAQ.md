@@ -56,7 +56,8 @@ The HTTP status is always 200. Look at the body: `{"ok": true, ...}` or `{"ok": 
 | Action | What it does |
 | --- | --- |
 | `health` | Is it up? No token needed. |
-| `platforms` | Lists the platforms and each one's text `limits` (see "Where are the text limits?"). |
+| `platforms` | Lists the platforms and each one's `limits`: text, and `seconds`, the longest video it takes (see "Where are the text limits?" and "How long can a video be?"). |
+| `video` | A Drive video's `name`, `size` and `seconds`, from Drive's own metadata, with `driveFileId`. No download, so it works for any file size. `seconds` is null until Drive has measured the video. |
 | `channel` | Shows which YouTube channel it posts to. Send `"platform": "linkedin"` for the LinkedIn profile and when its sign-in runs out, or `"threads"` for the Threads profile. |
 | `publish` | Queues a post. Returns a job. |
 | `get` | One job, by `id` or by your `key`. |
@@ -169,6 +170,9 @@ Send `publish` with `"platform": "facebook"`, `video` and an optional `descripti
 
 ### What video works for Reels?
 MP4 with H.264 and AAC, 9:16, 3 seconds to 15 minutes for Instagram and 3 to 90 seconds for Facebook Reels. If Instagram or Facebook can't process the video, the job fails with their reason. 
+
+### How long can a video be?
+Each platform's maximum is `limits.seconds` in `{"action":"platforms"}`: Instagram 900 (15 minutes), Facebook 90 (Meta's limit for Page Reels), Threads 300. YouTube and LinkedIn have none here. `publish` reads the video's length from Drive's metadata and refuses a longer video at once, with its length and the maximum. If Drive has not measured the video yet, the post goes ahead and the platform decides. Use the `video` action to check a length before posting.
 
 ### What happens when an Instagram upload fails?
 When Meta's upload host answers `ProcessingFailedError`, the job waits up to 10 minutes: a few of those videos still finish processing, and then the job posts (with a warning). If not, the job starts again with a new container after 5 minutes. It tries 3 times, then fails and posts nothing. `retry` on a failed job starts from a new container too. While a job waits on Instagram, the jobs behind it carry on.
