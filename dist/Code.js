@@ -2132,7 +2132,8 @@ function videoInfo_(req) {
 function checkVideoLength_(adapter, post) {
   const max = (adapter.limits || {}).seconds;
   if (!max || !post.video || !post.video.driveFileId) return;
-  const s = driveVideoSeconds_(post.video.driveFileId);
+  let s = null;
+  try { s = driveVideoSeconds_(post.video.driveFileId); } catch (err) { return; } // Drive busy or the file unreadable: the job's own steps deal with it
   if (s != null && s > max) {
     throw new ApiError('invalid', `The video is ${Math.round(s * 10) / 10} s; ${adapter.name} takes at most ${max} s. Send a shorter version.`);
   }
@@ -2156,7 +2157,6 @@ function publish_(req, caller) {
   const adapter = adapterFor_(req.platform);
   const now = new Date();
   const post = adapter.validate(req, now);
-  checkVideoLength_(adapter, post);
   if (adapter.name === 'youtube' && ACCOUNT) {
     if (!ytAccountConnected_(ACCOUNT)) throw new ApiError('not_connected', `The YouTube account "${ACCOUNT}" is not connected; call connectYouTube with that account first`);
     post.account = ACCOUNT;
@@ -2175,6 +2175,7 @@ function publish_(req, caller) {
       const prior = allJobs_().find((j) => j.key === key && j.status !== 'cancelled');
       if (prior) return { job: presentJob_(prior), existing: true };
     }
+    checkVideoLength_(adapter, post);
     const iso = now.toISOString();
     const job = {
       id: newJobId_(now, Utilities.getUuid().slice(0, 4)), key, platform: adapter.name, status: 'queued',
