@@ -42,6 +42,17 @@ test('instagram: firstComment is posted under the new Reel, and hashtags in it a
   assert.match(bad.error.message, /hashtags/);
 });
 
+test('instagram: collaborators go to Instagram as a list of usernames; more than 3 are refused', () => {
+  const t = setup();
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides', collaborators: ['@other.account'] });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  assert.equal(t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job.status, 'done');
+  assert.equal(t.google.meta.uploads.c1.params.collaborators, '["other.account"]');
+  const bad = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides', collaborators: ['a', 'b', 'c', 'd'] });
+  assert.match(bad.error.message, /collaborators/);
+});
+
 test('instagram: coverUrl goes to Instagram as cover_url; a non-https cover is refused', () => {
   const t = setup();
   const six = t.call('POST', { action: 'publish', token: t.admin, platform: 'instagram', video: { driveFileId: 'vid' }, caption: 'Tides #a #b #c #d #e #f' });
