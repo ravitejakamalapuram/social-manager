@@ -374,9 +374,7 @@ test('video length: each platform takes its own maximum, read from Drive without
   t.google.files.long = { name: 'b.mp4', mime: 'video/mp4', bytes: [1, 2, 3], ms: 150000 };
   const pub = (platform, extra) => t.call('POST', Object.assign({ action: 'publish', token: t.admin, platform, video: { driveFileId: 'long' } }, extra));
   assert.equal(pub('instagram', { caption: 'A 2.5 minute sloka' }).ok, true); // Instagram takes up to 15 min
-  const fb = pub('facebook', { description: 'A 2.5 minute sloka' });
-  assert.equal(fb.ok, false);
-  assert.match(fb.error.message, /150 s; facebook takes at most 90 s/);
+  assert.equal(pub('facebook', { description: 'A 2.5 minute sloka' }).ok, true); // Facebook posts it as a Page video
   const info = t.call('GET', { action: 'video', token: t.admin, driveFileId: 'long' });
   assert.deepEqual(info.video, { driveFileId: 'long', name: 'b.mp4', size: 3, seconds: 150 });
   // Not measured by Drive yet: no length, and the post is not refused.
@@ -384,5 +382,25 @@ test('video length: each platform takes its own maximum, read from Drive without
   assert.equal(pub('facebook', { description: 'x', video: { driveFileId: 'vid' } }).ok, true);
   const lim = t.call('GET', { action: 'platforms', token: t.admin }).limits;
   assert.equal(lim.instagram.seconds, 900);
-  assert.equal(lim.facebook.seconds, 90);
+  assert.equal(lim.facebook.seconds, 14400);
+  assert.equal(lim.facebook.reelSeconds, 90);
+});
+
+test('facebook: a video over 90 s goes up as a Page video from video.url; without a url it fails with the reason', () => {
+  const t = setup();
+  t.google.files.long = { name: 'b.mp4', mime: 'video/mp4', bytes: [1, 2, 3], ms: 150000 };
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'long', url: 'https://example.com/b.mp4' }, description: 'Guru Brahma', title: 'Guru Brahma' });
+  assert.equal(q.ok, true, JSON.stringify(q));
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  const up = t.google.meta.uploads[job.result.videoId];
+  assert.equal(up.params.file_url, 'https://example.com/b.mp4');
+  assert.equal(up.params.description, 'Guru Brahma');
+  assert.equal(Object.values(t.google.meta.uploads).filter((u) => u.finish).length, 0); // no Reel was started
+  const bad = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'long' }, description: 'x' });
+  runAll(t);
+  const failed = t.call('GET', { action: 'get', token: t.admin, id: bad.job.id }).job;
+  assert.equal(failed.status, 'failed');
+  assert.match(failed.error.message, /150 s; Facebook Reels take at most 90 s. Send video.url/);
 });

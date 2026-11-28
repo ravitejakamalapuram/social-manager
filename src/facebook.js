@@ -1,18 +1,22 @@
 /**
- * Facebook adapter: posts a video from Drive as a Reel on the connected Facebook Page (see src/meta.js).
- * It can publish now, schedule with publishAt, or leave the Reel as a draft with "state": "draft".
+ * Facebook adapter: posts a video from Drive as a Reel on the connected Facebook Page (see src/meta.js), or, when it
+ * is longer than Page Reels take (90 s), as a normal Page video that Facebook fetches from video.url.
+ * It can publish now, schedule with publishAt, or leave the post as a draft with "state": "draft".
  */
 
 const FB_STATES = ['published', 'draft'];
 
 const Facebook = {
   name: 'facebook',
-  /** Text caps are our own (Meta documents none for Reels). seconds: Page Reels published through the API run 3 to 90 s. */
-  limits: { title: 100, description: 5000, seconds: 90 },
+  /**
+   * Text caps are our own (Meta documents none for Reels). reelSeconds: Page Reels published through the API run 3 to
+   * 90 s; a longer video goes up as a normal Page video, up to seconds (Meta's 240 minutes).
+   */
+  limits: { title: 100, description: 5000, seconds: 14400, reelSeconds: 90 },
 
   validate(p, now) {
-    const video = optFile_(p.video, 'video');
-    if (!video) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}');
+    const video = p.video && typeof p.video === 'object' && p.video.url != null ? igVideo_(p.video) : optFile_(p.video, 'video');
+    if (!video || !video.driveFileId) throw new ApiError('invalid', 'Send video: {"driveFileId": ...}, plus "url" (a public link to the same file) for a video over 90 s');
     const state = optText_(p.state, 'state', 20) || 'published';
     if (!FB_STATES.includes(state)) throw new ApiError('invalid', `state must be one of ${FB_STATES.join(', ')}`);
     const publishAt = optFutureTime_(p.publishAt, 'publishAt', now);
@@ -98,9 +102,35 @@ const Facebook = {
 // Under Apps Script's 50 MB fetch limit, with room for the request around the bytes.
 let FB_WHOLE_BYTES = 45 * 1024 * 1024;
 
+/**
+ * A video longer than Page Reels take, posted as a normal Page video: Facebook fetches it from video.url
+ * (POST /{page-id}/videos with file_url), so no chunked upload is needed.
+ */
+function fbLongVideo_(p, s, ctx, c) {
+  if (!p.video.url) {
+    throw new ApiError('invalid', `The video is ${Math.round(s.seconds)} s; Facebook Reels take at most ${Facebook.limits.reelSeconds} s. Send video.url, a public link to the same file, to post it as a Page video.`);
+  }
+  const params = { file_url: p.video.url, description: p.description, title: p.title || null, access_token: c.token };
+  if (p.publishAt) Object.assign(params, { published: false, scheduled_publish_time: Math.floor(new Date(p.publishAt).getTime() / 1000) });
+  else if (p.state === 'draft') params.published = false;
+  const r = metaPost_(`/${c.pageId}/videos`, params);
+  s.reelId = r.id;
+  s.videoId = r.id;
+  ctx.save();
+  return 'next';
+}
+
 const FB_STEPS = {
   start(p, s, ctx, c) {
     if (s.reelId) return 'next';
+    if (!s.mode) {
+      let secs = null;
+      try { secs = driveVideoSeconds_(p.video.driveFileId); } catch (e) { /* unknown: try it as a Reel */ }
+      s.mode = secs != null && secs > Facebook.limits.reelSeconds ? 'video' : 'reel';
+      s.seconds = secs;
+      ctx.save();
+    }
+    if (s.mode === 'video') return fbLongVideo_(p, s, ctx, c);
     const r = metaPost_(`/${c.pageId}/video_reels`, { upload_phase: 'start', access_token: c.token });
     s.reelId = r.video_id;
     s.uploadUrl = r.upload_url || `https://rupload.facebook.com/video-upload/${GRAPH_VERSION}/${r.video_id}`;
@@ -109,6 +139,7 @@ const FB_STEPS = {
   },
 
   upload(p, s, ctx, c) {
+    if (s.mode === 'video') return 'next';
     if (!s.reelId) FB_STEPS.start(p, s, ctx, c);  // a refused whole upload starts again with a new Reel
     metaFileSize_(p, s);
     // Reels uploads refuse a part of the file ("Partial request (did not match length of file)"), so a file that

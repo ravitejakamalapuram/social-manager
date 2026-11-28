@@ -197,6 +197,11 @@ function fakeMeta(g, u, m, p) {
     meta.uploads[id] = { kind: 'fb', got: [], polls: 0 };
     return res(200, { video_id: id, upload_url: `https://rupload.facebook.com/video-upload/v24.0/${id}` });
   }
+  if (parts[0] === 'page1' && parts[1] === 'videos' && m === 'post') {
+    const id = `pv${Object.keys(meta.uploads).length + 1}`;
+    meta.uploads[id] = { kind: 'fb', got: [], polls: 0, params: q };
+    return res(200, { id });
+  }
   if (parts[1] === 'video_reels' && q.upload_phase === 'finish') { meta.uploads[q.video_id].finish = q; return res(200, { success: true }); }
   if (parts[1] === 'thumbnails') {
     if (meta.coverDown) return res(500, { error: { code: 2, message: 'temporary', is_transient: true } });
