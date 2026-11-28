@@ -402,5 +402,5 @@ test('facebook: a video over 90 s goes up as a Page video from video.url; withou
   runAll(t);
   const failed = t.call('GET', { action: 'get', token: t.admin, id: bad.job.id }).job;
   assert.equal(failed.status, 'failed');
-  assert.match(failed.error.message, /150 s; Facebook Reels take at most 90 s. Send video.url/);
+  assert.match(failed.error, /150 s; Facebook Reels take at most 90 s. Send video.url/);
 });
