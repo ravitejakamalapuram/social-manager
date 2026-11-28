@@ -171,6 +171,10 @@ function fakeMeta(g, u, m, p) {
     const up = meta.uploads[id];
     if (meta.failNextUpload) { meta.failNextUpload = false; return res(400, {}); }
     if (Number(p.headers.offset) !== up.got.length) return res(400, { error: { code: 100, message: 'bad offset' } });
+    // Facebook Reels: Meta refuses a part of the file (seen 28 Nov 2026 on a 20 MB part)
+    if (meta.wholeOnly && Number(p.headers.offset) + p.payload.length !== Number(p.headers.file_size)) {
+      return res(206, { debug_info: { retriable: true, type: 'PartialRequestError', message: 'Partial request (did not match length of file)' } });
+    }
     up.got.push(...p.payload);
     // Meta's spurious answer on a whole upload: the bytes arrive, yet it says the request failed.
     if (meta.processingFailed) return res(400, { debug_info: { retriable: false, type: 'ProcessingFailedError', message: 'Request processing failed' } });
