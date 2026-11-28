@@ -99,6 +99,28 @@ test('facebook: reel upload, finish with description, reads back the link', () =
   assert.equal(r.finish.description, 'How tides work');
 });
 
+test('facebook: a file that fits one fetch goes up in one request, since Reels refuse a part', () => {
+  const t = setup();
+  t.google.meta.wholeOnly = true;
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides' });
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(t.google.meta.uploads.r1.got, t.google.files.vid.bytes);
+});
+
+test('facebook: a refused whole upload starts a new Reel on the retry', () => {
+  const t = setup();
+  t.google.meta.failNextUpload = true;
+  const q = t.call('POST', { action: 'publish', token: t.admin, platform: 'facebook', video: { driveFileId: 'vid' }, description: 'Tides' });
+  t.call('POST', { action: 'run', token: t.admin });
+  t.sheet.rows[1][t.sheet.rows[0].indexOf('notBefore')] = ''; // pretend the wait is over
+  runAll(t);
+  const job = t.call('GET', { action: 'get', token: t.admin, id: q.job.id }).job;
+  assert.equal(job.status, 'done', JSON.stringify(job));
+  assert.deepEqual(t.google.meta.uploads.r2.got, t.google.files.vid.bytes);
+});
+
 test('facebook: thumbnail becomes the Reel cover; a refusal is a warning and the Reel still posts', () => {
   const t = setup();
   t.google.files.img = { name: 'a.jpg', mime: 'image/jpeg', bytes: [1, 2, 3] };

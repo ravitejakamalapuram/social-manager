@@ -95,6 +95,9 @@ const Facebook = {
   },
 };
 
+// Under Apps Script's 50 MB fetch limit, with room for the request around the bytes.
+let FB_WHOLE_BYTES = 45 * 1024 * 1024;
+
 const FB_STEPS = {
   start(p, s, ctx, c) {
     if (s.reelId) return 'next';
@@ -106,7 +109,23 @@ const FB_STEPS = {
   },
 
   upload(p, s, ctx, c) {
+    if (!s.reelId) FB_STEPS.start(p, s, ctx, c);  // a refused whole upload starts again with a new Reel
     metaFileSize_(p, s);
+    // Reels uploads refuse a part of the file ("Partial request (did not match length of file)"), so a file that
+    // fits in one fetch goes in one request; only a larger one is sent in parts.
+    if (s.offset === 0 && s.size <= FB_WHOLE_BYTES) {
+      try {
+        metaUpload_(s.uploadUrl, c.token, driveRange_(p.video.driveFileId, 0, s.size - 1), 0, s.size);
+      } catch (e) {  // a refused upload may hold a part already; the retry starts a new Reel instead
+        delete s.reelId;
+        delete s.uploadUrl;
+        ctx.save();
+        throw e;
+      }
+      s.offset = s.size;
+      ctx.save();
+      return 'next';
+    }
     return metaSendFile_(p, s, ctx, s.uploadUrl, c.token);
   },
 

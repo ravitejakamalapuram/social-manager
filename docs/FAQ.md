@@ -132,7 +132,7 @@ Call `get` with the job `id` or your `key` every minute or so. `status` goes `qu
 Things that went wrong without stopping the post. A bad thumbnail, caption or playlist becomes a warning, and the video still goes up. Also, if YouTube set a different privacy than you asked for, it is a warning.
 
 ### How long does it take?
-The queue runs every 5 minutes. A Short takes under a minute to upload. A big video uploads in 20 MB parts, and if it runs out of time it carries on in the next run. Admins can call `run` to start right away.
+The queue runs every 5 minutes. A Short takes under a minute to upload. A big video uploads in 20 MB parts (Facebook takes a video up to 45 MB in one request, because Reels refuse a part of the file), and if it runs out of time it carries on in the next run. Admins can call `run` to start right away.
 
 ### What if something fails?
 Network hiccups, and Meta errors that give no reason, are retried by themselves, up to 3 tries, 5 minutes apart. If YouTube's daily quota is used up, the job waits and tries again every hour. Anything else marks the job `failed` with the reason in `error`, starting with the step that failed (for example `upload step: ...`). Fix the cause and call `retry`: it continues from the failed step, so a finished upload is never repeated.
