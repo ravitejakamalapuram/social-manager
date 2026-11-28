@@ -113,6 +113,12 @@ function fbLongVideo_(p, s, ctx, c) {
   const params = { file_url: p.video.url, description: p.description, title: p.title || null, access_token: c.token };
   if (p.publishAt) Object.assign(params, { published: false, scheduled_publish_time: Math.floor(new Date(p.publishAt).getTime() / 1000) });
   else if (p.state === 'draft') params.published = false;
+  if (s.posting) {
+    // An earlier try may have reached Facebook without telling us: posting again could make a second video.
+    throw new ApiError('upstream', 'An earlier try to post this Page video got no answer; check the Page and post it by hand if it is missing');
+  }
+  s.posting = true;
+  ctx.save();
   const r = metaPost_(`/${c.pageId}/videos`, params);
   s.reelId = r.id;
   s.videoId = r.id;
@@ -201,10 +207,11 @@ const FB_STEPS = {
       const phases = [st.uploading_phase, st.processing_phase, st.publishing_phase].filter(Boolean);
       const bad = phases.find((x) => x.status === 'error');
       if (st.video_status === 'error' || bad) {
-        throw new ApiError('upstream', `Facebook could not process the Reel: ${(bad && bad.errors && bad.errors[0] && bad.errors[0].message) || 'no reason given'}`);
+        throw new ApiError('upstream', `Facebook could not process the ${s.mode === 'video' ? 'video' : 'Reel'}: ${(bad && bad.errors && bad.errors[0] && bad.errors[0].message) || 'no reason given'}`);
       }
-      if (st.video_status === 'ready' || (st.publishing_phase && st.publishing_phase.status === 'complete') || p.state === 'draft' || p.publishAt) {
-        const link = r.permalink_url ? (r.permalink_url.startsWith('http') ? r.permalink_url : `https://www.facebook.com${r.permalink_url}`) : `https://www.facebook.com/reel/${s.videoId}`;
+      if (st.video_status === 'ready' || (st.publishing_phase && st.publishing_phase.status === 'complete') || (s.mode !== 'video' && (p.state === 'draft' || p.publishAt))
+        || (s.mode === 'video' && (p.state === 'draft' || p.publishAt) && st.uploading_phase && st.uploading_phase.status === 'complete')) {
+        const link = r.permalink_url ? (r.permalink_url.startsWith('http') ? r.permalink_url : `https://www.facebook.com${r.permalink_url}`) : `https://www.facebook.com/${s.mode === 'video' ? `${c.pageId}/videos` : 'reel'}/${s.videoId}`;
         ctx.result({ videoId: s.videoId, url: link, state: p.publishAt ? 'scheduled' : p.state, publishAt: p.publishAt || null, videoStatus: st.video_status || null });
         return 'next';
       }
